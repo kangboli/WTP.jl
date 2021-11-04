@@ -1,1 +1,6 @@
-/Manifest.toml
+Manifest.toml
+test/test_data/test_1/*
+test/test_data/test_2/*
+test/test_data/template
+!test/test_data/test_1/si.yaml
+!test/test_data/test_2/si.yaml
