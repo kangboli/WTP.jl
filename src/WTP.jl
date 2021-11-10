@@ -5,6 +5,7 @@ using LinearAlgebra
 using StaticArrays
 using Printf
 using FFTW
+using ProgressMeter
 
 include("Utils.jl")
 include("Basis.jl")

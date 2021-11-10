@@ -55,7 +55,7 @@ s, c = spread(wannier, 4, scheme)
 # s, c = spread(wannier, 6)
 # integrals[g[0,0,0], g[1,0,0]][1, 1]
 # integrals[g[0,0,0], g[0,0,1]][1, 1]
-# b1, b2, b3 = basis(grid(g[1,0,0]))
+# b_1, b_2, b_3 = basis(grid(g[1,0,0]))
 # collect(grid(g[1,0,0]))
 # B = vector3_to_matrix(basis(g))
 # norm(coefficients(g[1,0,0]))

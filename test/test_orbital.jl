@@ -3,12 +3,11 @@ using Test
 using WTP
 """
 
-
 @testset "Translation" begin
-    wannier = wannier_from_save(joinpath(experiment_dir, "si.save"));
+    wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
+    wannier = wannier_from_save(wave_functions_list);
     gamma_point = grid(wannier)[0, 0, 0]
     u1gamma = wannier[gamma_point][1]
-    g = grid(u1gamma)
     @test translation(u1gamma) == g[0, 0, 0]
     # Lazy translation.
     translated = translate(u1gamma, g[1, 1, 1])
@@ -27,4 +26,13 @@ using WTP
 
     z21 = norm(braket(dagger(wannier[g[0, 0, 2]][1]), wannier[g[0, 0, 1]][1]))
     @test isapprox(z2m1, z21, atol=1e-5)
+
+
+    g = grid(u1gamma)
+    u1gamma[g[1, 0, 2]] 
+    
+    elements(u1gamma)[three_to_one(miller_to_standard(size(g), [1, 0, 2], [0, 0, 0])..., size(g))]
+
+    elements(u1gamma)[23]
+    u1gamma[g[standard_to_miller(size(g), one_to_three(23, size(g)), [0, 0, 0])...]]
 end

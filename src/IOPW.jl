@@ -1,48 +1,75 @@
+"""
+Horrible code for dealing with horrible file formats.
+
+This file contains hacks for interfacing with QE and Wannier90. 
+Only code within this file can assume knowledge of the shenanigans
+in the code of QE and Wannier90.
+"""
+
 using FortranFiles
 
-export UNK,
-    WFC,
+export WFC,
+    wave_functions_from_directory,
+    wannier_from_save,
+    load_evc!,
+    orbitals_from_wave_functions,
+    UNK,
+    single_orbital_from_unk,
+    wannier_from_unk_dir,
+    orbitals_from_unk,
     MMN,
     AMN,
-    load_evc!,
-    single_orbital_from_wave_functions,
-    orbitals_from_wave_functions,
-    brillouin_zone_from_k_coords,
-    WannierFromSave,
-    wave_functions_from_directory,
+    brillouin_zone_from_k_coordinates,
     estimate_sizes,
-    wave_functions_basis,
-    wannier_from_save,
-    orbitals_from_unk,
-    wannier_from_unk_dir,
     i_kpoint_map
 
-"""
-Ugly code for dealing with ugly files.
-"""
-const parse_line = (line, type) -> (n -> parse(type, n)).(split(strip(line), r"\s+"))
 
-# This factor is possibly either from Nyquist-Shannon sampling theorem.
-# or from the energy cutoff for the density. 
-# Settting this to 2 gives the same FFT as QE.
-const DOMAIN_SCALING_FACTOR = 2
+const overflow_slack = 1
+function angry_parse(::Type{T}, n) where T
+    try
+        return parse(T, n)
+    catch 
+        return T(0)
+    end
+end
 
+
+"""
+Parse a single line (string) as an array of primitive types.
+"""
+parse_line = (line, type) -> (n -> angry_parse(type, n)).(split(strip(line), r"\s+"))
+
+
+
+"""
+This structure provides an interface to the UNK files.
+
+nx, ny, nz: Number of grid points in x, y, z direction.
+k: The kpoint at which the unk orbital is defined.
+n_band: The number of bands stored.
+psi_r: Each row of this matrix corresponds to a band. Each column corresponds
+    to a grid point (not sure which one yet).
+filename: The name of the file from which the UNK object is constructed.
+"""
 struct UNK
     nx::Int64
     ny::Int64
     nz::Int64
     k::Int64
     n_band::Int64
-    psi_r::Matrix{ComplexF64}
+    psi_r::Matrix{ComplexF32}
     filename::String
 end
 
 
 
 """
+    UNK(unk_filename)
+
+Load a unk file named unk_filename as a UNK object.
+
 The wave functions are read such that each row is an orbital
 to avoid transposing in memory for SCDM.
-
 
 This takes 10s to load a 1.4G unk file using 12 threads and an NVMe drive.
 """
@@ -52,7 +79,7 @@ function UNK(unk_filename::String)
     parse_complex(number) =
         parse(Float32, number[1:20]) + parse(Float32, number[21:40]) * 1im
     nx, ny, nz, k, n_band = parse_line(readline(file), Int64)
-    unk = UNK(nx, ny, nz, k, n_band, zeros(ComplexF64, n_band, nx * ny * nz), unk_filename)
+    unk = UNK(nx, ny, nz, k, n_band, zeros(ComplexF32, n_band, nx * ny * nz), unk_filename)
     ng = nx * ny * nz
     lines = readlines(file)
     for n = 1:n_band
@@ -64,10 +91,62 @@ function UNK(unk_filename::String)
     return unk
 end
 
+"""
+This structure provides an interface to the .wfc files.
+
+The format is documented in: https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-wfc-files 
+
+It is copied here for convenience:
+
+INTEGER :: ik
+!! k-point index (1 to number of k-points)
+REAL(8) :: xk(3)
+!! k-point coordinates
+INTEGER :: ispin
+!! spin index for LSDA case: ispin=1 for spin-up, ispin=2 for spin-down
+!! for unpolarized or non-colinear cases, ispin=1 always
+LOGICAL :: gamma_only
+!! if .true. write or read only half of the plane waves
+REAL(8) :: scalef
+!! scale factor applied to wavefunctions
+INTEGER :: ngw
+!! number of plane waves (PW)
+INTEGER :: igwx
+!! max number of PW (may be larger than ngw, not sure why)
+INTEGER :: npol
+!! number of spin states for PWs: 2 for non-colinear case, 1 otherwise
+INTEGER :: nbnd
+!! number of wavefunctions
+REAL(8) :: b1(3), b2(3), b3(3)
+!! primitive reciprocal lattice vectors
+INTEGER :: mill(3,igwx)
+!! miller indices: h=mill(1,i), k=mill(2,i), l=mill(3,i)
+!! the i-th PW has wave vector (k+G)(:)=xk(:)+h*b1(:)+k*b2(:)+ l*b3(:)
+COMPLEX(8) :: evc(npol*igwx,nbnd)
+!! wave functions in the PW basis set
+!! The first index runs on PW components,
+!! the second index runs on band states.
+!! For non-colinear case, each PW has a spin component
+!! first  igwx components have PW with   up spin,
+!! second igwx components have PW with down spin
+
+Some renaming of variable names have been done to exorcise all malevolent acronyms.
+
+ik -> i_kpoint
+xk -> k_coordinates
+ispin -> i_spin
+scalef -> scale_factor
+ngw -> n_planewaves
+igwx -> max_n_planewaves
+npol -> n_polerizations
+nbnd -> n_band
+
+b1, b2, b3 -> b_1, b_2, b_3
+"""
 mutable struct WFC
     filename::String
     i_kpoint::Int64
-    k_coords::Vector{Float64}
+    k_coordinates::Vector{Float64}
     i_spin::Int64
     gamma_only::Bool
     scale_factor::Float64
@@ -76,16 +155,24 @@ mutable struct WFC
     n_polerizations::Int64
     n_band::Int64
 
-    b1::Vector{Float64}
-    b2::Vector{Float64}
-    b3::Vector{Float64}
+    b_1::Vector{Float64}
+    b_2::Vector{Float64}
+    b_3::Vector{Float64}
     miller::Matrix{Int64}
-    evc::Union{Matrix{ComplexF64},Nothing}
+    evc::Union{Matrix{ComplexF32},Nothing}
 end
 
-wave_functions_basis(wave_functions::WFC) = [wave_functions.b1 wave_functions.b2 wave_functions.b3]
+"""
+The basis vectors of the Reciprocal lattice as a matrix.
+Each column is the coordinates of a basis vector.
+"""
+wave_function_basis(w::WFC)::Matrix{Float64} = [w.b_1 w.b_2 w.b_3]
 
 """
+    WFC(wave_function_filename)
+
+Load a wave function and its metadata from a wfc.dat (terrible filenames) file.
+
 This may not work when Quantum Espresso is compiled with a different Fortran
 compiler.  Fortran does not enforce a standard on the size of it's primitive
 types in binary files.  The ways to get consistent behaviors are
@@ -93,21 +180,21 @@ types in binary files.  The ways to get consistent behaviors are
 1. Stay away from Fortran binary files. 
 """
 function WFC(wave_function_filename::String)
-    # See the format in: https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-wave_functions-files 
+    # 
     data = FortranFile(wave_function_filename)
-    i_kpoint, k_coords, i_spin, gamma_only, scale_factor =
+    i_kpoint, k_coordinates, i_spin, gamma_only, scale_factor =
         read(data, Int32, (Float64, 3), Int32, Int32, Float64)
     gamma_only = gamma_only > 0
     n_planewaves, max_n_planewaves, n_polerizations, n_band =
         read(data, Int32, Int32, Int32, Int32)
-    b1, b2, b3 = read(data, (Float64, 3), (Float64, 3), (Float64, 3))
+    b_1, b_2, b_3 = read(data, (Float64, 3), (Float64, 3), (Float64, 3))
     miller = read(data, (Int32, (3, max_n_planewaves)))
     close(data)
 
     return WFC(
         wave_function_filename,
         i_kpoint,
-        k_coords,
+        k_coordinates,
         i_spin,
         gamma_only,
         scale_factor,
@@ -115,9 +202,9 @@ function WFC(wave_function_filename::String)
         max_n_planewaves,
         n_polerizations,
         n_band,
-        b1,
-        b2,
-        b3,
+        b_1,
+        b_2,
+        b_3,
         miller,
         nothing,
     )
@@ -125,68 +212,81 @@ function WFC(wave_function_filename::String)
 end
 
 """
-Load the evc (frequency space wave-functions) into wave_functions.
-"""
-function load_evc!(w::WFC)
-    data = FortranFile(w.filename)
-    for _ = 1:4
-        read(data)
-    end
-    w.evc = zeros(ComplexF64, w.n_polerizations * w.max_n_planewaves, w.n_band)
-    for i = 1:w.n_band
-        w.evc[:, i] = read(data, (ComplexF64, w.n_polerizations * w.max_n_planewaves))
-    end
-    close(data)
-end
+    i_kpoint_map(wave_function_list)
 
+Construct a mapping between the mystical i_kpoints and kpoints
+from a list of WFC objects.
+
+This mapping maybe different from what is used for .mmn and .amn files.
+"""
 function i_kpoint_map(wave_functions_list::AbstractVector{WFC})
-    kmap = Dict{Int64, KPoint}()
+    k_map = Dict{Int64, KPoint}()
 
-    c = (w->w.k_coords).(wave_functions_list)
-    brillouin_zone = brillouin_zone_from_k_coords(c,
-        wave_functions_basis(wave_functions_list[1]))
+    c = (w->w.k_coordinates).(wave_functions_list)
+    brillouin_zone = brillouin_zone_from_k_coordinates(c,
+        wave_function_basis(wave_functions_list[1]))
     for w in wave_functions_list
-        kmap[w.i_kpoint] = snap(brillouin_zone, w.k_coords)
+        k_map[w.i_kpoint] = snap(brillouin_zone, w.k_coordinates)
     end
-    return kmap, brillouin_zone
+    return k_map, brillouin_zone
 end
 
 """
-Create an unk orbital from a WFC structure.
+   single_orbital_from_wave_functions(w, l, k, n) 
 
-k can be out of the first Brillouin zone. An image withing the first 
-Brillouin zone will be constructed and returned.
+Create an orbital on the nth band from a WFC object w. The orbital will be
+defined on a reciprocal lattice l.
+
+k is the kpoint, which can be out of the first Brillouin zone.  If k is outside
+the first Brillouin zone, we will fold the kpoint into the first Brillouin zone
+and translate the wave function in on the reciprocal lattice (phase shift in real lattice).
+
+The orbital is represented as values on the reciprocal lattice.
 """
 function single_orbital_from_wave_functions(w::WFC, l::ReciprocalLattice, k::KPoint, n::Int)
     w.evc !== nothing || error("The wave functions are not loaded.")
-    elements = zeros(ComplexF64, size(l)...)
+    elements = zeros(ComplexF32, size(l)...)
     orbital = UnkBasisOrbital(l, elements, reset_overflow(k), n)
 
     i_kpoint!(orbital, w.i_kpoint)
 
     for i = 1:w.max_n_planewaves
         g = grid_vector_constructor(l, w.miller[:, i] + overflow(k))
+        if coefficients(g) == [-3, -6, -3]
+            println(w.miller[:, i])
+            println(coefficients(k))
+        end
+
         orbital[g] = w.evc[i, n]
     end
 
-    return orbital
+    return orbital |> wtp_normalize!
 end
 
 """
-Create an unk orbital from a UNK structure.
+    single_orbital_from_unk(unk, h, k, n)
 
-k can be out of the first Brillouin zone. The resulting orbital 
-will also be an image outside the first Brillouin zone.
+Create an orbital on the nth band from a UNK structure unk. The orbital will be defined
+on a homecell h.
+
+k is the kpoint, which can be out of the first Brillouin zone. 
+
+*The kpoint is not folded and the wave function is not phase shifted*. 
+Currently, this is done at a later stage after the fft. 
+TODO: Phase shift the orbital.
+
+The orbital is represented as values on the homecell.
+
 """
-function single_orbital_from_unk(unk::UNK, homecell::HomeCell, k::KPoint, index_band::Int)
+function single_orbital_from_unk(unk::UNK, h::HomeCell, k::KPoint, n::Int)
     # TODO: Figure out the layout.
     if (unk.nx != unk.ny) || (unk.nx != unk.nz)
         @warn "UNK files with different nx ny nz dimension has not been
                 implemented because pw2wannier90.x has no documentation"
     end
 
-    elements = reshape(unk.psi_r[index_band, :], (unk.nx, unk.ny, unk.nz))
-    UnkBasisOrbital(homecell, elements, k, index_band)
+    elements = reshape(unk.psi_r[n, :], (unk.nx, unk.ny, unk.nz))
+    return UnkBasisOrbital(h, elements, k, n) |> wtp_normalize!
 end
 
 """
@@ -208,23 +308,32 @@ The returned orbital will be in the first Brillouin zone.
 function orbitals_from_unk(unk::UNK, homecell::HomeCell, k::KPoint)
 
     """
-    Convert the orbital from its image in Wannier brillouin zone to QE brillouin zone.
+    Convert the orbital from its image in Wannier brillouin zone to standard brillouin zone.
     """
     function standard_brillouin_zone(orbital, k::KPoint)
         has_overflow(k) || return orbital
-        return standardize(translate(orbital, grid(orbital)[overflow(k)...]))
+        orbital = standardize(translate(orbital, grid(orbital)[overflow(k)...]))
+        kpoint!(orbital, reset_overflow(k))
+        return orbital
     end
 
     function reciprocal_orbital(b)
         o = fft(single_orbital_from_unk(unk, homecell, k, b))
-        wtp_normalize!(o)
+        # wtp_normalize!(o)
         o = standard_brillouin_zone(o, k)
     end
+
     reciprocal_orbital.(collect(1:unk.n_band))
 end
 
-estimate_sizes(wave_functions::WFC, i::Int) =
-    2 * DOMAIN_SCALING_FACTOR * (max(abs.(wave_functions.miller[i, :])...))
+function estimate_sizes(wave_functions::WFC, i::Int, domain_scaling_factor::Number) 
+    domain_scaling_factor == 2 && return 2 * domain_scaling_factor * (max(abs.(wave_functions.miller[i, :])...))
+    function one_dim_size(i::Int)
+        half_domain = max(abs.(wave_functions.miller[i, :])...)
+        return 2*(half_domain + overflow_slack)
+    end
+
+end
 
 """
 Construct a BrillouinZone (grid) from a set of kpoints and the reciprocal basis vectors.
@@ -232,12 +341,12 @@ Construct a BrillouinZone (grid) from a set of kpoints and the reciprocal basis 
 This is done by first writing the kpoints in terms of the reciprocal basis.
 Then we take the three smallest kpoints besides the gamma point. 
 """
-function brillouin_zone_from_k_coords(
-    k_coords::Vector{Vector{Float64}},
+function brillouin_zone_from_k_coordinates(
+    k_coordinates::Vector{Vector{Float64}},
     reciprocal_basis::Matrix{Float64},
 )
-    gamma_point = k_coords[argmin(norm.(k_coords))]
-    offset_kpoints = [k_coords[i] - gamma_point for i = 1:length(k_coords)]
+    gamma_point = k_coordinates[argmin(norm.(k_coordinates))]
+    offset_kpoints = [k_coordinates[i] - gamma_point for i = 1:length(k_coordinates)]
     # Represents the kpoint in the reciprocal basis.
     in_reciprocal_basis = [reciprocal_basis \ k for k in offset_kpoints]
 
@@ -254,31 +363,52 @@ function brillouin_zone_from_k_coords(
     )
 end
 
+"""
+Load the evc (frequency space wave-functions) into wave_functions.
+"""
+function load_evc!(w::WFC)
+    data = FortranFile(w.filename)
+    for _ = 1:4
+        read(data)
+    end
+    w.evc = zeros(ComplexF32, w.n_polerizations * w.max_n_planewaves, w.n_band)
+    for i = 1:w.n_band
+        w.evc[:, i] = read(data, (ComplexF32, w.n_polerizations * w.max_n_planewaves))
+    end
+    close(data)
+end
+
+
 function wave_functions_from_directory(save_dir::String)
     is_wave_functions(f::String) = startswith(basename(f), "wfc") && endswith(basename(f), ".dat")
     return [WFC(file) for file in readdir(save_dir, join = true) if is_wave_functions(file)]
 end
 
 
-function wannier_from_save(wave_functions_list::AbstractVector{WFC})
+
+"""
+
+The domain_scaling_factor is possibly either from Nyquist-Shannon sampling theorem.
+or from the energy cutoff for the density. 
+Settting this to 2 gives the same FFT as QE.
+"""
+
+function wannier_from_save(wave_functions_list::AbstractVector{WFC}, domain_scaling_factor=1)
     # wave_functions_list = wave_functions_from_directory(save_dir)
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
-    # c = (w->w.k_coords).(wave_functions_list)
-    # brillouin_zone =
-    #     brillouin_zone_from_k_coords(c, wave_functions_basis(wave_functions_list[1]))
-    wannier = Wannier(brillouin_zone)
-    sizes = Tuple(maximum((w) -> estimate_sizes(w, i), wave_functions_list) for i = 1:3)
+    wannier = init_wannier(brillouin_zone)
+    sizes = Tuple(maximum((w) -> estimate_sizes(w, i, domain_scaling_factor), wave_functions_list) for i = 1:3)
 
-    for w in wave_functions_list
+    @showprogress for w in wave_functions_list
         k = k_map[w.i_kpoint]
         # elements(gauge(wannier))[miller_to_standard(k, translation(wannier))...] =
         gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, w.n_band, w.n_band)
 
         load_evc!(w)
-        reciprocal_lattice = ReciprocalLattice(matrix_to_vector3(wave_functions_basis(w)), size_to_domain(sizes))
+        reciprocal_lattice = ReciprocalLattice(matrix_to_vector3(wave_function_basis(w)), size_to_domain(sizes))
         # elements(wannier)[miller_to_standard(k, translation(wannier))...] =
-        wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k,)
+        wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k)
     end
     return wannier
 end
@@ -286,7 +416,7 @@ end
 function wannier_from_unk_dir(unk_dir::String, wave_functions_list::AbstractVector{WFC})
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
-    wannier = Wannier(brillouin_zone)
+    wannier = init_wannier(brillouin_zone)
     sizes = Tuple(maximum((w) -> estimate_sizes(w, i), wave_functions_list) for i = 1:3)
 
     for w in wave_functions_list
@@ -297,7 +427,7 @@ function wannier_from_unk_dir(unk_dir::String, wave_functions_list::AbstractVect
 
         # println("reading k point: $(coefficients(k))\n ik: $(w.i_kpoint)")
         reciprocal_lattice =
-            ReciprocalLattice(matrix_to_vector3(wave_functions_basis(w)), size_to_domain(sizes))
+            ReciprocalLattice(matrix_to_vector3(wave_function_basis(w)), size_to_domain(sizes))
         homecell = transform_grid(reciprocal_lattice)
         reciprocal_orbitals = orbitals_from_unk(unk, homecell, k)
         (o -> i_kpoint!(o, w.i_kpoint)).(reciprocal_orbitals)
@@ -313,8 +443,8 @@ struct MMN
     n_band::Int64
     n_kpoint::Int64
     n_neighbor::Int64
-    integrals::Dict{Pair{Int, Int}, Matrix{ComplexF64}}
-    translations::Dict{Pair{Int, Int}, Tuple{Int, Int, Int}}
+    integrals::Dict{Pair{Integer, Integer}, Matrix{ComplexF32}}
+    translations::Dict{Pair{Integer, Integer}, Tuple{Integer, Integer, Integer}}
 end
 
 """
@@ -329,7 +459,6 @@ function MMN(mmn_filename::String)
     parse_complex(number) =
         parse(Float32, number[1:20]) + parse(Float32, number[21:end]) * 1im
     _ = readline(file) # Skip the date.
-    # println(date)
     n_band, n_kpoint, n_neighbor = parse_line(readline(file), Int64)
     mmn = MMN(n_band, n_kpoint, n_neighbor, Dict(), Dict())
     lines = readlines(file)
@@ -368,9 +497,14 @@ struct AMN
     n_band::Int64
     n_kpoint::Int64
     n_wannier::Int64
-    gauge::Dict{Int64, Matrix{ComplexF64}}
+    gauge::Dict{Int64, Matrix{ComplexF32}}
 end
 
+"""
+    AMN(amn_filename)
+
+Create an AMN object from a file.
+"""
 function AMN(amn_filename::String)
     file = open(amn_filename)
     _ = readline(file) # Skip the date.
@@ -385,7 +519,8 @@ function AMN(amn_filename::String)
             m, n, i_kpoint, real_part, complex_part = split(strip(lines[line_number]), r"\s+")
             m, n, i_kpoint = (s->parse(Int64, s)).([m, n, i_kpoint])
             real_part, complex_part = (s->parse(Float32, s)).([real_part, complex_part])
-            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexF64, (n_band, n_band)))
+
+            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexF32, (n_band, n_band)))
             amn.gauge[i_kpoint][m, n] = real_part + complex_part * 1im
         end
     end
@@ -393,22 +528,22 @@ function AMN(amn_filename::String)
     return amn
 end
 
-function gauge(amn::AMN, k_map::Dict{Int64, KPoint})
-    g = Dict{KPoint, Matrix{ComplexF64}}()
 
-    for (i_kpoint, gauge) in amn.gauge
-        g[k_map[i_kpoint]] = gauge
+"""
+Create a gauge from an AMN object.
+"""
+
+function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int64, KPoint}, orthonormalization=true)
+    # g = Dict{KPoint, Matrix{ComplexF32}}()
+    gauge = Gauge(grid)
+
+    orthonormalize(A::AbstractMatrix) = let (U, _, V) = svd(A)
+        U * adjoint(V)
     end
-    return g
+
+    for (i_kpoint, u) in amn.gauge
+        gauge[k_map[i_kpoint]] = orthonormalization ? orthonormalize(u) : u
+    end
+
+    return gauge
 end
-    # file = open(unk_filename)
-    # nx, ny, nz, k, n_band = parse_line(readline(file), Int64)
-    # unk = UNK(nx, ny, nz, k, n_band, zeros(ComplexF64, n_band, nx * ny * nz), unk_filename)
-    # ng = nx * ny * nz
-    # lines = readlines(unk_filename)
-    # for n = 1:n_band
-    #     Threads.@threads for i = 1:ng
-    #         unk.psi_r[n, i] = parse_complex(lines[ng*(n-1)+i+1])
-    #     end
-    # end
-    # close(file)

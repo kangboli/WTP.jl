@@ -27,9 +27,9 @@ end
 """
 The braket of a bra and a ket should be a number.
 """
-function braket(b1, b2)::Number
-    !ket(b1) && ket(b2) || error("braket should have a bra and a ket.")
-    return b1.vector' * b2.vector
+function braket(b_1, b_2)::Number
+    !ket(b_1) && ket(b_2) || error("braket should have a bra and a ket.")
+    return b_1.vector' * b_2.vector
 end
 
 

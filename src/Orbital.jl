@@ -13,7 +13,8 @@ export kpoint,
     KPoint,
     UnkBasisOrbital,
     UnkOrbital,
-    orthonormal
+    orthonormal,
+    ifft
 
 """
 An UnkOrbital represents a u_{nk}(x) function. 
@@ -31,18 +32,22 @@ cache(orbital::AbstractUnkOrbital) = haskey(orbital.meta, :cache) ? orbital.meta
 cache!(orbital::AbstractUnkOrbital, c) = orbital.meta[:cache] = c
 
 kpoint(orbital) = orbital.kpoint
-kpoint!(orbital, new_kpoint::KPoint) = orbital.kpoint = new_kpoint
+function kpoint!(orbital, new_kpoint::KPoint) 
+     orbital.kpoint = new_kpoint
+     return orbital
+end
 index_band(orbital) = orbital.index_band
 
 function braket(o_1::AbstractUnkOrbital, o_2::AbstractUnkOrbital)
     !ket(o_1) && ket(o_2) || error("braket requires a bra and a ket.")
     # cache lookup.
-    c = cache(o_1)
-    if c !== nothing 
-        result = c[kpoint(o_1), kpoint(o_2)]
-        result !== nothing && return result[index_band(o_1), index_band(o_2)]
-        println("no cache entry for $(kpoint(o_1)) \n and \n $(kpoint(o_2))")
-    end
+    # This cache turned out to be very slow.
+    # c = cache(o_1)
+    # if c !== nothing 
+    #     result = c[kpoint(o_1), kpoint(o_2)]
+    #     result !== nothing && return result[index_band(o_1), index_band(o_2)]
+    #     println("no cache entry for $(kpoint(o_1)) \n and \n $(kpoint(o_2))")
+    # end
     translation(o_1) == translation(o_2) || error("orbitals not aligned: $(translation(o_1))\n $(translation(o_2))")
     v_1 = reshape(elements(o_1), length(grid(o_1)))
     v_2 = reshape(elements(o_2), length(grid(o_2)))
@@ -54,19 +59,22 @@ Base.:*(o_1::AbstractUnkOrbital, o_2::Any) = braket(o_1, o_2)
 
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T
-    elements::AbstractArray{ComplexF64,3}
+    elements::AbstractArray{ComplexF32,3}
     kpoint::KPoint
-    index_band::Int
+    index_band::Integer
     ket::Bool
     meta::Dict{Symbol,Any}
 end
 
-UnkBasisOrbital(
+function UnkBasisOrbital(
     grid::T,
-    elements::AbstractArray{ComplexF64,3},
+    elements::AbstractArray{ComplexF32,3},
     kpoint::KPoint,
-    index_band::Int,
-) where {T} = UnkBasisOrbital{T}(grid, elements, kpoint, index_band, true, Dict())
+    index_band::Integer,
+) where {T} 
+    orbital = UnkBasisOrbital{T}(grid, elements, kpoint, index_band, true, Dict()) 
+    return orbital
+end 
 
 
 ## Override the functions of Basis.
@@ -91,7 +99,8 @@ function standardize(orbital::UnkBasisOrbital)
     non_zeros = filter(n -> n != 0, coefficients(amount))
     length(non_zeros) == 0 && return orbital
 
-    new_orbital = translate(deepcopy(orbital), -amount)
+    new_orbital = translate(orbital, -amount)
+    elements!(new_orbital, zeros(ComplexF32, size(grid(orbital))))
     circshift!(elements(new_orbital), elements(orbital), Tuple(coefficients(amount)))
     return new_orbital
 end
@@ -101,19 +110,34 @@ Fast Fourier Transform of an orbital.
 
 This can be, and should be, parallelized with PencilFFT.jl
 """
-function fft(orbital::UnkBasisOrbital{T}) where {T}
+function fft(orbital::UnkBasisOrbital{HomeCell}) 
     new_elements = FFTW.fft(elements(orbital))
     new_grid = transform_grid(grid(orbital))
 
-    return UnkBasisOrbital{dual_grid(T)}(
+    return UnkBasisOrbital{dual_grid(HomeCell)}(
         new_grid,
         new_elements,
         kpoint(orbital),
         index_band(orbital),
         ket(orbital),
         Dict(),
-    )
+    ) |> wtp_normalize!
 end
+
+function ifft(orbital::UnkBasisOrbital{ReciprocalLattice})
+    new_elements = FFTW.ifft(elements(orbital))
+    new_grid = transform_grid(grid(orbital))
+
+    return UnkBasisOrbital{dual_grid(ReciprocalLattice)}(
+        new_grid,
+        new_elements,
+        kpoint(orbital),
+        index_band(orbital),
+        ket(orbital),
+        Dict(),
+    ) |> wtp_normalize!
+end
+
 
 function Base.show(io::IO, orbital::UnkBasisOrbital)
     ket(orbital) ? print(io, "ket\n") : print(io, "bra\n")

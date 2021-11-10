@@ -38,10 +38,30 @@ Base.size(g::Grid) = Tuple(d[2]-d[1]+1 for d in domain(g))
 Base.length(g::Grid) = prod(size(g))
 
 """
+    g[0, 0, 1]
+
 Indexing a grid with a miller index gives the grid vector corresponding to that
 index.
 """
-Base.getindex(g::Grid, indices::Vararg{Int}) = grid_vector_constructor(g, indices)
+Base.getindex(g::Grid, i::Integer, j::Integer, k::Integer) = grid_vector_constructor(g, [i, j, k])
+
+"""
+Indexing a grid with a single integer i gives a grid vector. 
+Indexing an OnGrid object with this grid vector gives the ith element
+of the object.
+
+>>> elements(o)[i] == o[g[i]]
+
+This provides a mapping between 1D indices (which are to be used for matrix algorithm) 
+and grid vectors.
+"""
+Base.getindex(g::Grid, i::Integer) = grid_vector_constructor(g,
+    standard_to_miller(size(g), one_to_three(i, size(g)), [0,0,0]))
+
+"""
+Indexing a grid with a list of linear indices gives a list of grid vector.
+"""
+Base.getindex(g::Grid, linear_indices::AbstractVector{<:Integer}) = [g[i] for i in linear_indices]
 
 """
 Iterate over the grid gives a sequence of grid vectros that goes through each grid point.
@@ -119,22 +139,22 @@ functions as array manipulation.
 
 struct HomeCell <: Grid
     basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Int, Int}, Tuple{Int, Int}, Tuple{Int, Int}}
+    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 struct ReciprocalLattice <: Grid
     basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Int, Int}, Tuple{Int, Int}, Tuple{Int, Int}}
+    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 struct BrillouinZone <: Grid
     basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Int, Int}, Tuple{Int, Int}, Tuple{Int, Int}}
+    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 struct RealLattice <: Grid
     basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Int, Int}, Tuple{Int, Int}, Tuple{Int, Int}}
+    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 dual_grid(::Type{HomeCell}) = ReciprocalLattice

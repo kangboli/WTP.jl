@@ -15,10 +15,10 @@ o_1 = [0, 1, 1] / sqrt(2)
 o_2 = [1, 0, 1] / sqrt(2)
 o3 = [0, 0, 1] / sqrt(2)
 oblique_basis = (Vector3(o_1...), Vector3(o_2...), Vector3(o3...))
-b1 = DefaultLinearCombination([1, 0, 0], oblique_basis, true)
-b2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
-@test isapprox(coefficients(basis_transform(b1, CARTESIAN_BASIS)), o_1, atol=1e-7 )
-@test isapprox(coefficients(basis_transform(b2, CARTESIAN_BASIS)), o_2, atol=1e-7 )
+b_1 = DefaultLinearCombination([1, 0, 0], oblique_basis, true)
+b_2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
+@test isapprox(coefficients(basis_transform(b_1, CARTESIAN_BASIS)), o_1, atol=1e-7 )
+@test isapprox(coefficients(basis_transform(b_2, CARTESIAN_BASIS)), o_2, atol=1e-7 )
 
 
 @testset "Linear Combinationination of Orbitals" begin
@@ -27,22 +27,22 @@ b2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
     u1gamma = wannier[gamma_point][1]
     u2gamma = wannier[gamma_point][2]
 
-    comb1 = UnkOrbital(u1gamma)
-    comb2 = UnkOrbital(u2gamma)
+    comb_1 = UnkOrbital(u1gamma)
+    comb_2 = UnkOrbital(u2gamma)
     
-    @test basis(comb1)[1] == u1gamma
-    @test coefficients(comb1) == [1]
+    @test basis(comb_1)[1] == u1gamma
+    @test coefficients(comb_1) == [1]
 
-    comb3 = add(comb1, comb2);
+    comb_3 = add(comb_1, comb_2);
 
-    @test coefficients(comb3) == [1., 1.]
-    @test coefficients(negate(comb3))  == -[1., 1.]
-    @test coefficients(add(comb3, comb3)) == [2., 2.]
-    @test coefficients(minus(comb3, comb1)) == [0., 1.]
-    @test coefficients(mul(2, comb3)) == [2., 2.]
+    @test coefficients(comb_3) == [1., 1.]
+    @test coefficients(negate(comb_3))  == -[1., 1.]
+    @test coefficients(add(comb_3, comb_3)) == [2., 2.]
+    @test coefficients(minus(comb_3, comb_1)) == [0., 1.]
+    @test coefficients(mul(2, comb_3)) == [2., 2.]
 
-    @test isapprox(braket(dagger(comb1), comb1), 1, atol=1e-7)
-    @test isapprox(braket(dagger(comb2), comb1), 0, atol=1e-7)
+    @test isapprox(braket(dagger(comb_1), comb_1), 1, atol=1e-7)
+    @test isapprox(braket(dagger(comb_2), comb_1), 0, atol=1e-7)
 
     ut1gamma = wannier[1, gamma_point]
     ut1kappa = wannier[1, grid(wannier)[0, 0, 1]]

@@ -1,6 +1,8 @@
 using WTP
 using Test
 using LinearAlgebra
+using ProfileView
+using Profile
 
 const test_1_dir = "./test/test_data/test_1"
 const test_2_dir = "./test/test_data/test_2"

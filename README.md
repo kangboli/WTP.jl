@@ -5,22 +5,51 @@
 Fortran does not do negative indices. Instead of implementing an abstraction for
 negative indices, here is what people came up with
 
-In the `.wave_functions` files of QE:
-
-- the Brillouin zone is centered at the origin and is defined on $[-k_{max}, k_{max}]$.
-- the Brillouin zone is indexed by non-negative Miller indices ($[0, 2 n_{max}-1]$).
-- The index $n_{max} + 1$ corresponds to the k-point $-k_{max} + dk$ in the Brillouin zone. This means
-the the wave function $u_{n,-k_{max}+dk}$ is labeled ith $n_{max}+1$.
-
-Wannier90 is more consistent on this:
-
-- the Brillouin zone starts from the origin and is defined on ($[0, 2 k_{max}]$), not the theoretical convention.
-- the Brillouin zone is indexed by non-negative k-points ($[0, 2 n_{max}-1]$).
-- The index $n_{max} + 1$ does correspond to the k-point $k_{max} + dk$ in the Brillouin zone.
+- For the input files, the Brillouin zone is centered at the origin and is defined on $[-k_{max}, k_{max}]$. This is the convention in the literature.
+- For the output files, the Brillouin zone starts from the origin and is defined on ($[0, 2 k_{max}]$), not the theoretical convention.
+- For the $u_{nk}$ orbitals, $[0, 2k_{max}]$ is stored.
+- The indices are $0, 1, \ldots, 2 n-1$.
 
 We will use a conventional and sane Brillouin zone by implementing an abstraction for negative indices.
 
-*The Brillouin zone is defined on $[-k_{max}, k_{max}]$ and index by Miller indices $[-n_{max}+1, n_{max}]$*.
+*The Brillouin zone is defined on $[-k_{max}, k_{max}]$ and index by $[-n_{max}+1, n_{max}]$*. (index starts at $1$ in Julia)
+
+
+## The reciprocal lattice
+
+The reciprocal lattice is $[-nG, nG]$. The lattice points are indexed
+by $-n, \ldots, n-1$. For us, the lattice is $[-nG, nG]$, but the lattice
+points are indexed by $-n+1, \ldots, n$.
+
+## FFT and Normalization
+
+We use the same convention as QE in terms of FFT. Forward FFT takes 
+an orbital defined on the Homecell and produces an orbital on the reciprocal lattice.
+The inverse FFT takes an orbital defined on the Reciprocal lattice and produces 
+and orbital on the Homecell.
+
+```
+                          FFT         
+                       ----------->   
+Orbitals on Homecell      iFFT        Orbitals on the Reciprocal Lattice
+                       <-----------                                     
+
+```
+
+The normalization convention of QE seems to be 
+
+1. Orbitals on the reciprocal lattice normalize to the number of grid points $N_g$.
+2. Orbitals on the homecell normalize to $\sqrt{N_g}$.
+3. The norm is preserved after applying an inverse Fourier transform and a forward Fourier transfrom `ifft(fft(orbital))`.
+
+I'm not sure if there is reason for this convention, but I find it difficult, under this convention, to 
+
+1. keep operations such as inner products efficient. It is cheaper to keep the
+wave functions normalized than adding a normalization step to inner products.
+2. keep track of the normalization factor. Many stupid mistakes can be avoided if things normalize to $1$.
+
+For this program, we will normalize the underlying arrays of orbitals to $1$.
+
 
 ## The MMN File
 
@@ -77,14 +106,14 @@ Take a look at the programming practices of Quantum Espresso, and avoid them all
 Better be verbose than cryptic. If a name is too long, introduce a **single**
 letter alias within a small scope (20 SLoC) so that the full name is visible on the same page.
 Never abbreviate anything with a hideous sequence of consonants. It might make you feel
-like a hacker, but someone with dyslexia wonders what the hack.
+like a hacker, but someone with dyslexia wonders what the heck.
 
 The only special cases are 
 
-1. The acronym is common knowledge. For example, "fft" (fast Fourier transform) is not a problem, but "bz" (Brillouin Zone) is not acceptible. It may as well mean Benzene or Benz.
+1. The acronym is common knowledge. For example, "fft" (fast Fourier transform) is not a problem, but "bz" (Brillouin Zone) is not acceptable. It may as well mean Benzene, buzz, or Benz.
 
 when interfacing with QE/Wannier90. We reuse the
-mystical variable names to make the correspondance explicit.
+mystical variable names to make the correspondence explicit.
 
 
 ### Global Variables.

@@ -1,21 +1,52 @@
+
 export FiniteDifference, W90FiniteDifference, finite_difference, find_shells,
-compute_weights, spread, neighbor_shells, weights
+compute_weights, spread, neighbor_shells, weights, populate_integral_table!, center,
+neighbor_basis_integral, second_moment
 
 abstract type FiniteDifference end
 
-neighbor_shells(scheme::FiniteDifference) = scheme.neighbor_shells
+"""
+    neighbor_shells(scheme)
+
+Shells of neighbors of the gamma point within a finite different scheme.
+Each shell is a vector of kpoints.
+"""
+neighbor_shells(scheme::FiniteDifference)::AbstractVector{Vector{KPoint}} = scheme.neighbor_shells
+
+"""
+    weights(scheme)
+
+The weights corresponding to each shell within a scheme. The weights are ordered
+from the inner-most to the outer-most shell.
+"""
 weights(scheme::FiniteDifference) = scheme.weights
 
+neighbor_basis_integral(scheme::FiniteDifference) = scheme.neighbor_basis_integral
+# transformed_integral(scheme::FiniteDifference) = scheme.transformed_integral
+
+"""
+    find_neighbors(k, scheme)
+
+Find the set of relevant neighbors for a kpoint under a scheme.
+"""
 function find_neighbors(kpoint::KPoint, scheme::FiniteDifference)
     dk_list = vcat(neighbor_shells(scheme)...)
     return (dk -> kpoint + dk).([dk_list; -dk_list])
 end
 
+"""
+The finite difference scheme used in Wannier90.
+"""
 struct W90FiniteDifference <: FiniteDifference
     neighbor_shells::AbstractVector{Vector{KPoint}}
     weights::AbstractVector{Number}
+    neighbor_basis_integral::NeighborIntegral
 end
 
+"""
+The Brillouin zone on which the finite difference scheme is defined.
+"""
+grid(scheme::W90FiniteDifference) = grid(neighbor_shells(scheme)[1][1])
 
 function find_shells(u::Wannier, n_shell::Int)
     shells = OrderedDict{Float64,Vector{KPoint}}()
@@ -53,89 +84,83 @@ end
 function W90FiniteDifference(u::Wannier, n_shells = 1)
     neighbor_shells = find_shells(u, n_shells)
     weights = compute_weights(neighbor_shells)
-    return weights === nothing ? W90FiniteDifference(u, n_shells + 1) :
-           W90FiniteDifference(neighbor_shells, weights)
+    weights === nothing && return W90FiniteDifference(u, n_shells + 1)
+    neighbor_integral = NeighborIntegral()
+    
+    scheme = W90FiniteDifference(neighbor_shells, weights, neighbor_integral)
+    populate_integral_table!(scheme, u)
+    return scheme
 end
 
+function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
+    result = zeros(ComplexF32, 3)
+    N = prod(size(collect(grid(scheme))))
 
-"""
-"""
-function finite_difference(wannier::Wannier, n::Int, k::KPoint, scheme::W90FiniteDifference)
-    f(k) = wannier[n, k]
-    grad = zeros(UnkOrbital, 3)
-    for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))
-        grad += sum((b -> w * cartesian(b) * (f(k + b) - f(k))).(shell))
-    end
-
-    return grad
-end
-
-
-function spread(u::Wannier, n::Int64, scheme::FiniteDifference)
-
-    center = zeros(ComplexF64, 3)
-    r2::ComplexF64 = 0
-    N = prod(size(grid(u)))
-    for k in grid(u)
-        # println("adding $(coefficients(k))")
-        # gradient = finite_difference(u, n, k, scheme)
-        # center += [(1im / N) * braket(dagger(u[n, k]), g) for g in gradient]
+    function add_kpoint_contribution!(k::KPoint)
         for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))
             for b in shell
-                center += - 1 / N * w * cartesian(b) * imag(log(braket(dagger(u[n, k]), u[n, k+b])))
+                result -= w * cartesian(b) * imag(log(M[k, k+b][n, n]))
             end
         end
-
-        # println(center)
-        # r2 += (1 / N) * sum([braket(dagger(gradient[i]), gradient[i]) for i = 1:3])
     end
-    return r2, center
+
+    for k in grid(scheme)
+        add_kpoint_contribution!(k)
+    end
+    return result / N
 end
 
-function construct_integral_table(wannier::Wannier, scheme::FiniteDifference)
+function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
+    result = 0
+    N = prod(size(collect(grid(scheme))))
+
+    function add_kpoint_contribution!(k::KPoint)
+        for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))
+            for b in shell
+                result += w * ((1-abs2(M[k, k+b][n, n])) + imag(log(M[k, k+b][n, n]))^2)
+            end
+        end
+    end
+
+    for k in grid(scheme)
+        add_kpoint_contribution!(k)
+    end
+
+    return result / N
+end
+
+function populate_integral_table!(scheme::W90FiniteDifference, wannier::Wannier)
     brillouin_zone = grid(wannier)
-    neighbor_set = NeighborIntegral()
+    M = neighbor_basis_integral(scheme)
 
     """
     Compute the mmn matrix between k1 and k2.
     """
-    function mmn_matrix(k1::KPoint, k2::KPoint)::Matrix{ComplexF64}
+    function mmn_matrix(k1::KPoint, k2::KPoint)::Matrix{ComplexF32}
         return [braket(dagger(m), n) for m in wannier[k1], n in wannier[k2]]
     end
 
-    extended_brillouin_zone = union(Set{KPoint}([]), (k->find_neighbors(k, scheme)).(brillouin_zone)...)
-    i = Threads.Atomic{Int}(0)
+    # extended_brillouin_zone = union(Set{KPoint}([]), (k->find_neighbors(k, scheme)).(brillouin_zone)...)
 
     # Threads.@threads for kpoint in collect(brillouin_zone)
-    for kpoint in extended_brillouin_zone
-        neighbors = Set(find_neighbors(kpoint, scheme))
-        println(i, ", kpoint: ", coefficients(kpoint), ", n neighbor: ", length(neighbors))
-        for neighbor in filter(x -> x in extended_brillouin_zone, find_neighbors(kpoint, scheme))
-            neighbor_set[neighbor, kpoint] !== nothing && continue
-            neighbor_set[kpoint, neighbor] = mmn_matrix(kpoint, neighbor)
+    @showprogress for kpoint in collect(brillouin_zone)
+        # println(i, ", kpoint: ", coefficients(kpoint), ", n neighbor: ", length(neighbors))
+        for neighbor in find_neighbors(kpoint, scheme)
+            M[neighbor, kpoint] !== nothing && continue
+            M[kpoint, neighbor] = mmn_matrix(kpoint, neighbor)
         end
-        Threads.atomic_add!(i, 1)
     end
     for kpoint in brillouin_zone
-        (m -> cache!(m, neighbor_set)).(wannier[kpoint])
+        (m -> cache!(m, M)).(wannier[kpoint])
     end
-    return neighbor_set
+    return M
 end
 
 
-# function find_neighbors(kpoint::KPoint)
-#     b1 = grid(kpoint)[1, 0, 0]
-#     b2 = grid(kpoint)[0, 1, 0]
-#     b3 = grid(kpoint)[0, 0, 1]
-#     dk_list = [b1, b2, b3, b1 - b2, b2 - b3, b3 - b1]
-#     # Second order list.
-#     # dk_list = [ 
-#     # b1+b1, b1+b2, b1+b3,
-#     # b2+b1, b2+b2, b2+b3,
-#     # b3+b1, b3+b2, b3+b3,
-#     # b1-b2, b1-b3,
-#     # b2-b1, b2-b3,
-#     # b3-b1, b3-b2,
-#     # ]
-#     return (dk -> kpoint + dk).([dk_list; -dk_list])
-# end
+    # @showprogress for kpoint in collect(extended_brillouin_zone)
+    #     # println(i, ", kpoint: ", coefficients(kpoint), ", n neighbor: ", length(neighbors))
+    #     for neighbor in filter(x -> x in extended_brillouin_zone, find_neighbors(kpoint, scheme))
+    #         M[neighbor, kpoint] !== nothing && continue
+    #         M[kpoint, neighbor] = mmn_matrix(kpoint, neighbor)
+    #     end
+    # end

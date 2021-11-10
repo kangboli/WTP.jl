@@ -3,7 +3,6 @@ using ReusePatterns
 export OnGrid,
     grid,
     grid!,
-    miller_to_standard,
     translate,
     translate!,
     translation,
@@ -37,34 +36,11 @@ elements(on_grid::OnGrid) = on_grid.elements
 elements!(on_grid::OnGrid, new_elements) = on_grid.elements = new_elements
 
 
-"""
-Convert indices from miller indices to storage indices.
-for example:
-miller:   -2 -1  0  1  2  3
-standard:  5  6  1  2  3  4
-
-With an offset of 1, we effectively translate the orbital to the right by one.
-
-miller:    -3 -2 -1  0  1  2
-standard:   5  6  1  2  3  4
-"""
-miller_to_standard(
-    sizes::Tuple{Int64,Int64,Int64},
-    indices::AbstractVector{Int64},
-    offsets::AbstractVector{Int64},
-) = collect(
-    Iterators.map(
-        (m, o, s) -> m - o >= 0 ? m - o + 1 : m - o + s + 1,
-        indices,
-        offsets,
-        sizes,
-    ),
-)
 
 miller_to_standard(grid_vector::GridVector, offsets::AbstractVector{Int64}) =
     miller_to_standard(size(grid(grid_vector)), coefficients(grid_vector), offsets)
 
-miller_to_standard(grid_vector::GridVector{T}, offsets::GridVector{T}) where T =
+miller_to_standard(grid_vector::GridVector{T}, offsets::GridVector{T}) where {T} =
     miller_to_standard(grid_vector, coefficients(offsets))
 
 """
@@ -91,15 +67,17 @@ end
 Transalate/move on_grid by amount. 
 This is done virtually by shifting the domain of the underlying grid.
 """
-function translate(on_grid::OnGrid{T}, amount::GridVector{T}) where T <: Grid
+function translate(on_grid::OnGrid{T}, amount::GridVector{T}) where {T<:Grid}
     g = grid(on_grid)
-    new_g = @set g.domain = Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
+    new_g = @set g.domain =
+        Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
     @set on_grid.grid = new_g
 end
 
-function translate!(on_grid::OnGrid{T}, amount::GridVector{T}) where T <: Grid
+function translate!(on_grid::OnGrid{T}, amount::GridVector{T}) where {T<:Grid}
     g = grid(on_grid)
-    new_g = @set g.domain = Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
+    new_g = @set g.domain =
+        Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
     grid!(on_grid, new_g)
 end
 
@@ -108,19 +86,22 @@ function Base.string(on_grid::OnGrid)
     type_str = "type: $(typeof(on_grid))"
     grid_str = "grid:\n$(indent(repr(grid(on_grid))))"
     translation_str = "translation: $(translation(on_grid))"
-    element_str = "element_type:\n$(indent(repr(Base.return_types(element, (typeof(on_grid), Int, Int, Int))[1])))"
+    element_str = "element_type:\n$(indent(repr(Base.return_types(element, (typeof(on_grid), Integer, Integer, Integer))[1])))"
     return join([type_str, grid_str, translation_str, element_str], "\n")
 end
 
-translation(on_grid::OnGrid) = grid_vector_constructor(grid(on_grid), 
-    [(u + l - 1) ÷ 2 for (l, u) in domain(grid(on_grid))])
+translation(on_grid::OnGrid) = grid_vector_constructor(
+    grid(on_grid),
+    [(u + l - 1) ÷ 2 for (l, u) in domain(grid(on_grid))],
+)
 
 """
 Normalize on_grid to unit norm. 
 """
 function wtp_normalize(on_grid::OnGrid)
     elems = elements(on_grid)
-    @set on_grid.elements = elems / norm(elems)
+    normalization_factor = norm(elems)
+    @set on_grid.elements = elems / normalization_factor
 end
 
 """
@@ -128,12 +109,20 @@ Same as normalize, but may modify the argument if mutable.
 """
 function wtp_normalize!(on_grid::OnGrid)
     elems = elements(on_grid)
-    elements!(on_grid, elems / norm(elems))
+    normalization_factor = norm(elems)
+    # println(normalization_factor)
+    elements!(on_grid, elems / normalization_factor)
+    return on_grid
 end
 
 """
-Convert on_grid to the standard representation.
-This means that on_grid is defined on -N+1 to N.
+
+Standardize the representation of an OnGrid object.
+The resulting object will be defined from -N+1 (N) to N.
+Values outside the grid will be wrapped around.
+
+                     2 ... N-1
+-N+1 -N+2 ...  0  1  2 ... N-1 N
 
 This operation does modify the underlying array.
 This default implementation is slow.

@@ -1,17 +1,19 @@
 export Wannier,
+    init_wannier,
+    Gauge,
     gauge,
     NeighborIntegral,
     find_neighbors,
-    construct_integral_table,
     integrals,
-    reciprocal_lattice
+    reciprocal_lattice,
+    gauge_transform
 
 struct Gauge <: OnGrid{BrillouinZone}
     grid::BrillouinZone
-    elements::Array{AbstractMatrix{ComplexF64}, 3}
+    elements::Array{AbstractMatrix{ComplexF32}, 3}
 end
 
-Gauge(grid::BrillouinZone) = Gauge(grid, Array{Matrix{ComplexF64},3}(undef, size(grid)))
+Gauge(grid::BrillouinZone) = Gauge(grid, Array{Matrix{ComplexF32},3}(undef, size(grid)))
 
 Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid, KPoint}, g, reset_overflow(k))
 Base.setindex!(g::Gauge, value, k::KPoint) = invoke(setindex!, Tuple{OnGrid, Any, KPoint}, g, value, reset_overflow(k))
@@ -22,18 +24,38 @@ Wannier represents a Brillouin zone of bands of orbitals.
 Indexing a wannier with a k-point gives a set of basis functions 
 for the bands at that k-point.
 """
-struct Wannier <: OnGrid{BrillouinZone}
+struct Wannier{T <: OnGrid} <: OnGrid{BrillouinZone}
     grid::BrillouinZone
-    elements::Array{Vector{UnkBasisOrbital{ReciprocalLattice}},3}
+    elements::Array{Vector{T},3}
     gauge::Gauge
 end
 
 gauge(wannier::Wannier) = wannier.gauge
 reciprocal_lattice(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
 
-function Wannier(grid::BrillouinZone)
+function init_wannier(grid::BrillouinZone)
     elements = Array{Vector{UnkBasisOrbital{ReciprocalLattice}},3}(undef, size(grid))
     return Wannier(grid, elements, Gauge(grid))
+end
+
+function fft(wannier::Wannier{UnkBasisOrbital{HomeCell}}) 
+    g = grid(wannier)
+    elements = Array{Vector{UnkBasisOrbital{dual_grid(HomeCell)}},3}(undef, size(g))
+    transformed = Wannier(g, elements, gauge(wannier))
+    for k in g
+        transformed[k] = fft.(wannier[k])
+    end
+    return transformed
+end
+
+function ifft(wannier::Wannier{UnkBasisOrbital{ReciprocalLattice}}) 
+    g = grid(wannier)
+    elements = Array{Vector{UnkBasisOrbital{dual_grid(ReciprocalLattice)}},3}(undef, size(g))
+    transformed = Wannier(g, elements, gauge(wannier))
+    for k in g
+        transformed[k] = ifft.(wannier[k])
+    end
+    return transformed
 end
 
 
@@ -52,24 +74,31 @@ function outer_orbital(unk::UnkBasisOrbital{<:Grid}, G)::UnkBasisOrbital
     return unkg
 end
 
-function Base.getindex(wannier::Wannier, n::Int, k::KPoint)
+function Base.getindex(wannier::Wannier, n::Integer, k::KPoint)
     # gauge = elements(gauge(wannier))[miller_to_standard(k, translation(wannier))...]
     g = gauge(wannier)[k]
     return UnkOrbital(g[n, :], wannier[k], true, true)
 end
 
 """
+Indexing a wannier object with a kpoint gives the set of basis 
+orbitals at that kpoint.
+
+The kpoint can be out of the first Brillouin zone. In that case, 
+the basis orbital corresponding to that kpoint will be computed
+by phase shifting its image in the first Brillouin zone.
+
 """
 function Base.getindex(u::Wannier, k::KPoint)
     images_in_brillouin_zone = invoke(Base.getindex, Tuple{OnGrid,KPoint}, u, reset_overflow(k))
     translated_orbitals = has_overflow(k) ?  
         (o -> standardize(translate(o, -grid(o)[overflow(k)...]))).(images_in_brillouin_zone) :
         images_in_brillouin_zone
-    return translated_orbitals
+    return (o -> kpoint!(o, k)).(translated_orbitals)
 end
 
 struct NeighborIntegral
-    integrals::Dict{Pair{KPoint,KPoint},Matrix{ComplexF64}}
+    integrals::Dict{Pair{KPoint,KPoint},Matrix{ComplexF32}}
 end
 
 NeighborIntegral() = NeighborIntegral(Dict())
@@ -88,7 +117,7 @@ function Base.getindex(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KP
     return nothing
 end
 
-function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatrix{ComplexF64}, g::Vararg{KPoint})
+function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatrix{ComplexF32}, g::Vararg{KPoint})
     g_1, g_2 = g
     i = integrals(neighbor_integral)
     if haskey(i, g_2 => g_1)
@@ -99,11 +128,11 @@ function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatr
 end
 
 function gauge_transform(neighbor_integral::NeighborIntegral, gauge::Gauge)
-    transformed_neighbor_integral = NeighborIntegral()
+    t = NeighborIntegral()
     for ((k_1, k_2), integral) in integrals(neighbor_integral)
-        transformed_neighbor_integral[k_1, k_2] = adjoint(gauge[k1]) * integral * gauge[k2]
+        t[k_1, k_2] = adjoint(gauge[k_1]) * integral * gauge[k_2] 
     end
-    return transformed_neighbor_integral
+    return t
 end
 
 
@@ -116,14 +145,14 @@ end
 
 
     # f(k) = UnkOrbital(wannier[n, k])
-    # g(x...) = grid_vector_constructor(grid(k), x)
+    # g(x...) = grid_vector_coefficientsonstructor(grid(k), x)
     # c(b) = basis_transform(coefficients(b), basis(b), CARTESIAN_BASIS)
 
-    # b1, b2, b3 = g(1, 0, 0), g(0, 1, 0), g(0, 0, 1)
-    # B = [c(b1) c(b2) c(b3)]'
+    # b_1, b_2, b_3 = g(1, 0, 0), g(0, 1, 0), g(0, 0, 1)
+    # B = [c(b_1) c(b_2) c(b_3)]'
     # # B = vector3_to_matrix(basis(g))'
-    # rhs = 1 / 2 * [f(k + b1) - f(k - b1), f(k + b2) - f(k - b2), f(k + b3) - f(k - b3)]
-    # # rhs = [f(k + b1) - f(k), f(k + b2) - f(k), f(k + b3) - f(k)]
+    # rhs = 1 / 2 * [f(k + b_1) - f(k - b_1), f(k + b_2) - f(k - b_2), f(k + b_3) - f(k - b_3)]
+    # # rhs = [f(k + b_1) - f(k), f(k + b_2) - f(k), f(k + b_3) - f(k)]
     # return inv(B) * rhs
 
 
@@ -145,15 +174,3 @@ end
 
 # weights === nothing && return finite_difference(wannier, n, k, n_shells+1)
 
-
-# """
-# Approximate u_{nk} with u_{nk+G} - u_{nk-G}. This reduces the number of
-# integrals while preserving the order of approximation for the spread.
-# """
-# function midpoint(wannier::Wannier, n::Int, k::KPoint)
-#     f(k) = UnkOrbital(wannier[n, k])
-#     g(x...) = grid_vector_constructor(grid(k), x)
-
-#     b1, b2, b3 = g(1, 0, 0), g(0, 1, 0), g(0, 0, 1)
-#     return 1 / 2 * [f(k + b1) + f(k - b1), f(k + b2) + f(k - b2), f(k + b3) + f(k - b3)]
-# end

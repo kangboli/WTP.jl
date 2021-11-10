@@ -6,7 +6,8 @@ export AbstractGridVector,
     has_overflow,
     grid_vector_constructor,
     add_overflow,
-    cartesian
+    cartesian,
+    linear_index
 
 abstract type AbstractGridVector{G<:Grid} <: LinearCombination end
 
@@ -110,3 +111,11 @@ The Cartesian coordinates of a grid vector.
 cartesian(grid_vec::GridVector)::Vector{Number} = basis_transform(
     coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
 
+"""
+Convert a grid vector to an integer as a linear index.
+Indexing the underlying grid with this integer gives back
+the grid vector.
+"""
+linear_index(grid_vec::GridVector) = let sizes = size(grid(grid_vec))
+    three_to_one(miller_to_standard(sizes, coefficients(grid_vec), [0, 0, 0])..., sizes)
+end

@@ -49,11 +49,11 @@ all pairs of basis vectors.
 function braket(l_1::LinearCombination, l_2::LinearCombination)
     result = 0
 
-    b12 = [braket(b1, b2) for b1 in basis(l_1), b2 in basis(l_2)]
-    return transpose(coefficients(l_1)) * b12 * coefficients(l_2)
-    # for (b1, c1) in zip(basis(l_1), coefficients(l_1))
-    #     for (b2, c2) in zip(basis(l_2), coefficients(l_2))
-    #         result +=  c1 * c2 * braket(b1, b2)
+    b_12 = [braket(b_1, b_2) for b_1 in basis(l_1), b_2 in basis(l_2)]
+    return transpose(coefficients(l_1)) * b_12 * coefficients(l_2)
+    # for (b_1, c1) in zip(basis(l_1), coefficients(l_1))
+    #     for (b_2, c2) in zip(basis(l_2), coefficients(l_2))
+    #         result +=  c1 * c2 * braket(b_1, b_2)
     #     end
     # end
     return result
