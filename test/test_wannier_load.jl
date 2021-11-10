@@ -36,7 +36,7 @@
 
     for kpoint in g
         for b in 1:20
-            @test isapprox(norm(elements(wannier2[kpoint][1]) - elements(wannier[kpoint][1])), 0, atol=1e-7)
+            @test isapprox(norm(elements(wannier2[kpoint][1]) - elements(wannier[kpoint][1])), 0, atol=1e-6)
         end
     end
     

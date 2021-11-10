@@ -49,18 +49,21 @@ The Brillouin zone on which the finite difference scheme is defined.
 grid(scheme::W90FiniteDifference) = grid(neighbor_shells(scheme)[1][1])
 
 function find_shells(u::Wannier, n_shell::Int)
-    shells = OrderedDict{Float64,Vector{KPoint}}()
+    shells = SortedDict{Real,Vector{KPoint}}()
     
     for k in grid(u)
-        key = round(norm(cartesian(k)), digits = 7)
+        key = round(norm(cartesian(k)), digits = 5)
         haskey(shells, key) ? append!(shells[key], [k]) : shells[key] = [k]
     end
-    return collect(values(shells))[1:n_shell]
+    return collect(values(shells))[2:n_shell+1]
 end
 
+"""
+Solve Aw = q
+"""
 function compute_weights(neighbor_shells::AbstractVector{Vector{KPoint}})
 
-    indices = OrderedDict(
+    indices = SortedDict(
         (1, 1) => 1,
         (1, 2) => 2,
         (1, 3) => 3,
@@ -93,7 +96,7 @@ function W90FiniteDifference(u::Wannier, n_shells = 1)
 end
 
 function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
-    result = zeros(ComplexF32, 3)
+    result = zeros(ComplexFxx, 3)
     N = prod(size(collect(grid(scheme))))
 
     function add_kpoint_contribution!(k::KPoint)
@@ -136,7 +139,7 @@ function populate_integral_table!(scheme::W90FiniteDifference, wannier::Wannier)
     """
     Compute the mmn matrix between k1 and k2.
     """
-    function mmn_matrix(k1::KPoint, k2::KPoint)::Matrix{ComplexF32}
+    function mmn_matrix(k1::KPoint, k2::KPoint)::Matrix{ComplexFxx}
         return [braket(dagger(m), n) for m in wannier[k1], n in wannier[k2]]
     end
 

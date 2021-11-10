@@ -98,7 +98,7 @@ end
 
 Base.:(==)(grid_vec_1::GridVector, grid_vec_2::GridVector) =
     coefficients(grid_vec_1) == coefficients(grid_vec_2) &&
-    ## TODO: Put this back and figure out how it breaks.
+    ## TODO: Put this back and figure out if it breaks things.
     # grid(grid_vec_1) == grid(grid_vec_2) &&
     ket(grid_vec_1) == ket(grid_vec_2)
 
@@ -106,6 +106,7 @@ Base.hash(grid_vec::GridVector) = hash(coefficients(grid_vec)) + hash(ket(grid_v
 
 """
     cartesian(grid_vec)
+
 The Cartesian coordinates of a grid vector.
 """
 cartesian(grid_vec::GridVector)::Vector{Number} = basis_transform(

@@ -19,9 +19,9 @@ using WTP
     # wtp_normalize!(real_transformed)
     transformed_back = ifft(real_transformed)
     norm(elements(transformed_back))
-    @test norm(elements(transformed_back) - elements(real_orbital)) < 1e-7
-    @test norm(elements(real_transformed) - elements(wannier[gamma_point][1]) ) < 1e-7
-    
+    @test norm(elements(transformed_back) - elements(real_orbital)) < 1e-6
+    @test norm(elements(real_transformed) - elements(wannier[gamma_point][1]) ) < 1e-6
+
 
     # for n = 1:20
     #     real_transformed = ifft(real_orbitals[n])

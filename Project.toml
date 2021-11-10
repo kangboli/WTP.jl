@@ -5,14 +5,12 @@ version = "0.1.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 FortranFiles = "c58ffaec-ab22-586d-bfc5-781a99fd0b10"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-ProfileView = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
-ReusePatterns = "a39b5e78-89b5-562b-97d8-70689129df0c"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 

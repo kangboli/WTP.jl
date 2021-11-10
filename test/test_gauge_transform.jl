@@ -32,7 +32,7 @@ d = diag(neighbor_integral[g[0, 0, 0], g[0, 1, 0]])
 scheme = W90FiniteDifference(wannier)
 
 n, N = 3, length(collect(grid(wannier)))
-center = zeros(ComplexF32, 3)
+center = zeros(ComplexFxx, 3)
 
 for k in grid(wannier)
     for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))

@@ -6,6 +6,19 @@ Abstract Grid.
 
 This abstract type provides indexing with Miller indices (slightly generalized)
 and iteration.
+
+Centering convention:
+
+    The convention for grid centered at the origin:
+        - For an even grid: the domain is -N, ..., 0, ..., N-1.
+        - For an odd grid: the domain is -N, ..., 0, ..., N.
+
+This convention matches the input files of QE for the Brillouin zone (but not
+its internals and outputs). This also matches the reciprocal lattice 
+and possibly the homecell in QE.
+
+If a grid does not comply to the centering convention, it is considered a
+translated grid.
 """
 
 abstract type Grid end
@@ -16,6 +29,14 @@ The grid includes the end points of the domain.
 """
 domain(grid::Grid) = grid.domain
 domain!(grid::Grid, new_domain) = grid.domain = new_domain
+
+"""
+    center(grid)
+
+The center of a grid. This should be 0 for a grid that complies 
+to the centering convention.
+"""
+center(grid::Grid) = [(u + l + 1) ÷ 2 for (l, u) in domain(grid)]
 
 """
     basis(g)
@@ -70,9 +91,9 @@ function Base.iterate(grid::Grid)
     n_x, n_y, n_z = size(grid)
     (n_x < 1 || n_y < 1 || n_z < 1) && return nothing
     miller = Iterators.product(
-        -div(n_x, 2)+1:div(n_x, 2),
-        -div(n_y, 2)+1:div(n_y, 2),
-        -div(n_z, 2)+1:div(n_z, 2))
+        -div(n_x, 2):div(n_x, 2)-1,
+        -div(n_y, 2):div(n_y, 2)-1,
+        -div(n_z, 2):div(n_z, 2)-1)
     first, miller_state = iterate(miller)
     return (grid_vector_constructor(grid, [first...]), (miller, miller_state))
 end

@@ -6,6 +6,9 @@ using StaticArrays
 using Printf
 using FFTW
 using ProgressMeter
+using DataStructures
+
+const ComplexFxx = ComplexF32
 
 include("Utils.jl")
 include("Basis.jl")

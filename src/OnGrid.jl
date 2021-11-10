@@ -1,5 +1,3 @@
-using ReusePatterns
-
 export OnGrid,
     grid,
     grid!,
@@ -17,11 +15,17 @@ export OnGrid,
 """
 A function defined on a grid. 
 Examples include orbitals and bands.
+
+Centering Convention:
+
+An OnGrid complies to the centering convention if it is defined
+on a grid centered at the origin. This means the domain is
+from -N to N-1 for an even grid, and -N to N for an odd grid.
 """
 abstract type OnGrid{G<:Grid} end
 
 """
-The grid on which on_grid is defined.
+The grid on which the OnGrid object is defined.
 """
 grid(on_grid::OnGrid)::Grid = on_grid.grid
 grid!(on_grid::OnGrid, new_grid) = on_grid.grid = new_grid
@@ -90,10 +94,15 @@ function Base.string(on_grid::OnGrid)
     return join([type_str, grid_str, translation_str, element_str], "\n")
 end
 
-translation(on_grid::OnGrid) = grid_vector_constructor(
-    grid(on_grid),
-    [(u + l - 1) ÷ 2 for (l, u) in domain(grid(on_grid))],
-)
+"""
+    translation(on_grid)
+
+The translation of an OnGrid object is the center of the underlying grid as a
+grid vector. 
+"""
+translation(on_grid::OnGrid) = let g = grid(on_grid)
+    grid_vector_constructor(g, center(g))
+end
 
 """
 Normalize on_grid to unit norm. 

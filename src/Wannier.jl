@@ -10,10 +10,10 @@ export Wannier,
 
 struct Gauge <: OnGrid{BrillouinZone}
     grid::BrillouinZone
-    elements::Array{AbstractMatrix{ComplexF32}, 3}
+    elements::Array{AbstractMatrix{ComplexFxx}, 3}
 end
 
-Gauge(grid::BrillouinZone) = Gauge(grid, Array{Matrix{ComplexF32},3}(undef, size(grid)))
+Gauge(grid::BrillouinZone) = Gauge(grid, Array{Matrix{ComplexFxx},3}(undef, size(grid)))
 
 Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid, KPoint}, g, reset_overflow(k))
 Base.setindex!(g::Gauge, value, k::KPoint) = invoke(setindex!, Tuple{OnGrid, Any, KPoint}, g, value, reset_overflow(k))
@@ -98,7 +98,7 @@ function Base.getindex(u::Wannier, k::KPoint)
 end
 
 struct NeighborIntegral
-    integrals::Dict{Pair{KPoint,KPoint},Matrix{ComplexF32}}
+    integrals::Dict{Pair{KPoint,KPoint},Matrix{ComplexFxx}}
 end
 
 NeighborIntegral() = NeighborIntegral(Dict())
@@ -117,7 +117,7 @@ function Base.getindex(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KP
     return nothing
 end
 
-function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatrix{ComplexF32}, g::Vararg{KPoint})
+function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatrix{ComplexFxx}, g::Vararg{KPoint})
     g_1, g_2 = g
     i = integrals(neighbor_integral)
     if haskey(i, g_2 => g_1)

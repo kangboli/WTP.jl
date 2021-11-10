@@ -16,7 +16,7 @@ U = Gauge(grid(wannier), amn, k_map)
 
 ## Construct the scheme.
 
-VSCodeServer.@profview (scheme = W90FiniteDifference(wannier))
+scheme = W90FiniteDifference(wannier)
 
 ## Apply the gauge transform on the basis integrals to get the neighbor integrals.
 
@@ -51,26 +51,26 @@ M = gauge_transform(neighbor_basis_integral(scheme), U)
 
 spread(n) = second_moment(M, scheme, n) - norm(center(M, scheme, n))^2
 
-@test isapprox(spread(1), 15.47179726, atol = 1e-6)
-@test isapprox(spread(2), 13.17038702, atol = 1e-6)
-@test isapprox(spread(3), 7.64407335, atol = 1e-6)
-@test isapprox(spread(4), 8.25678268, atol = 1e-6)
-@test isapprox(spread(5), 9.77938941, atol = 1e-6)
-@test isapprox(spread(6), 7.87085298, atol = 1e-6)
-@test isapprox(spread(7), 9.17499993, atol = 1e-6)
-@test isapprox(spread(8), 8.44416108, atol = 1e-6)
-@test isapprox(spread(9), 9.83532580, atol = 1e-6)
-@test isapprox(spread(10), 10.35456759, atol = 1e-6)
-@test isapprox(spread(11), 11.23672086, atol = 1e-6)
-@test isapprox(spread(12), 9.93107295, atol = 1e-6)
-@test isapprox(spread(13), 8.86266731, atol = 1e-6)
-@test isapprox(spread(14), 7.67576041, atol = 1e-6)
-@test isapprox(spread(15), 10.03275833, atol = 1e-6)
-@test isapprox(spread(16), 15.04579948, atol = 1e-6)
-@test isapprox(spread(17), 14.16030120, atol = 1e-6)
-@test isapprox(spread(18), 12.06222393, atol = 1e-6)
-@test isapprox(spread(19), 13.83179659, atol = 1e-6)
-@test isapprox(spread(20), 23.16652774, atol = 1e-6)
+@test isapprox(spread(1), 15.47179726, atol = 1e-5)
+@test isapprox(spread(2), 13.17038702, atol = 1e-5)
+@test isapprox(spread(3), 7.64407335, atol = 1e-5)
+@test isapprox(spread(4), 8.25678268, atol = 1e-5)
+@test isapprox(spread(5), 9.77938941, atol = 1e-5)
+@test isapprox(spread(6), 7.87085298, atol = 1e-5)
+@test isapprox(spread(7), 9.17499993, atol = 1e-5)
+@test isapprox(spread(8), 8.44416108, atol = 1e-5)
+@test isapprox(spread(9), 9.83532580, atol = 1e-5)
+@test isapprox(spread(10), 10.35456759, atol = 1e-5)
+@test isapprox(spread(11), 11.23672086, atol = 1e-5)
+@test isapprox(spread(12), 9.93107295, atol = 1e-5)
+@test isapprox(spread(13), 8.86266731, atol = 1e-5)
+@test isapprox(spread(14), 7.67576041, atol = 1e-5)
+@test isapprox(spread(15), 10.03275833, atol = 1e-5)
+@test isapprox(spread(16), 15.04579948, atol = 1e-5)
+@test isapprox(spread(17), 14.16030120, atol = 1e-5)
+@test isapprox(spread(18), 12.06222393, atol = 1e-5)
+@test isapprox(spread(19), 13.83179659, atol = 1e-5)
+@test isapprox(spread(20), 23.16652774, atol = 1e-5)
 
 
 

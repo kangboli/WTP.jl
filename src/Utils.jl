@@ -1,8 +1,20 @@
 export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three
 
+"""
+    size_to_domain(sizes)
+
+Convert a set of three sizes into a domain.
+
+sizes must be an iterable of numbers.
+"""
 function size_to_domain(sizes) 
-    nx, ny, nz = Int.(sizes)
-    return ((-nx ÷ 2 + 1, nx ÷ 2), (-ny ÷ 2 + 1, ny ÷ 2), (-nz ÷ 2 + 1, nz ÷ 2))
+    n_x, n_y, n_z = Int.(sizes)
+    function domain(s::Int)
+        iseven(s) && return (-s ÷ 2, s ÷ 2 - 1)
+        isodd(s) && return (-s ÷ 2, s ÷ 2)
+    end
+
+    return (domain(n_x), domain(n_y), domain(n_z))
 end
 
 function indent(str::String)
@@ -19,12 +31,12 @@ TODO: Offsets have not been tested.
 Convert indices from miller indices to storage indices.  for example, for an
 even grid:
 
-miller:   -2 -1  0  1  2  3
-standard:  5  6  1  2  3  4
+miller:   -3 -2 -1  0  1  2  
+standard:  4  5  6  1  2  3  
 
 With an offset of 1, we effectively translate the orbital to the right by one.
 
-miller:    -3 -2 -1  0  1  2
+miller:    -4 -3 -2 -1  0  1 
 standard:   5  6  1  2  3  4
 
 For an odd grid, without an offset.
@@ -77,7 +89,7 @@ standard_to_miller(
     offsets::AbstractVector{Int64},
 ) = collect(
     Iterators.map(
-        (m, o, s) -> m <= s ÷ 2 + 1 ? m - 1 - o : m - 1 - s - o,
+        (m, o, s) -> m <= s ÷ 2 ? m - 1 - o : m - 1 - s - o,
         indices,
         offsets,
         sizes,

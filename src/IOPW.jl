@@ -24,7 +24,6 @@ export WFC,
     i_kpoint_map
 
 
-const overflow_slack = 1
 function angry_parse(::Type{T}, n) where T
     try
         return parse(T, n)
@@ -57,7 +56,7 @@ struct UNK
     nz::Int64
     k::Int64
     n_band::Int64
-    psi_r::Matrix{ComplexF32}
+    psi_r::Matrix{ComplexFxx}
     filename::String
 end
 
@@ -79,7 +78,7 @@ function UNK(unk_filename::String)
     parse_complex(number) =
         parse(Float32, number[1:20]) + parse(Float32, number[21:40]) * 1im
     nx, ny, nz, k, n_band = parse_line(readline(file), Int64)
-    unk = UNK(nx, ny, nz, k, n_band, zeros(ComplexF32, n_band, nx * ny * nz), unk_filename)
+    unk = UNK(nx, ny, nz, k, n_band, zeros(ComplexFxx, n_band, nx * ny * nz), unk_filename)
     ng = nx * ny * nz
     lines = readlines(file)
     for n = 1:n_band
@@ -159,7 +158,7 @@ mutable struct WFC
     b_2::Vector{Float64}
     b_3::Vector{Float64}
     miller::Matrix{Int64}
-    evc::Union{Matrix{ComplexF32},Nothing}
+    evc::Union{Matrix{ComplexFxx},Nothing}
 end
 
 """
@@ -245,18 +244,13 @@ The orbital is represented as values on the reciprocal lattice.
 """
 function single_orbital_from_wave_functions(w::WFC, l::ReciprocalLattice, k::KPoint, n::Int)
     w.evc !== nothing || error("The wave functions are not loaded.")
-    elements = zeros(ComplexF32, size(l)...)
-    orbital = UnkBasisOrbital(l, elements, reset_overflow(k), n)
+    empty_elements = zeros(ComplexFxx, size(l)...)
+    orbital = UnkBasisOrbital(l, empty_elements, reset_overflow(k), n)
 
     i_kpoint!(orbital, w.i_kpoint)
 
     for i = 1:w.max_n_planewaves
         g = grid_vector_constructor(l, w.miller[:, i] + overflow(k))
-        if coefficients(g) == [-3, -6, -3]
-            println(w.miller[:, i])
-            println(coefficients(k))
-        end
-
         orbital[g] = w.evc[i, n]
     end
 
@@ -290,6 +284,8 @@ function single_orbital_from_unk(unk::UNK, h::HomeCell, k::KPoint, n::Int)
 end
 
 """
+The returned orbitals will be in the first Brillouin zone.
+
 Create all the orbitals that are in the wave_functions structure.
 
 k can be out of the first Brillouin zone. Images within the first Brillouin zone
@@ -303,7 +299,12 @@ function orbitals_from_wave_functions(wave_functions::WFC, reciprocal_lattice::R
 end
 
 """
-The returned orbital will be in the first Brillouin zone.
+The returned orbitals will be in the first Brillouin zone.
+
+Create all the orbitals in the unk structure.
+
+A Fourier transform is applied so that orbitals are represented on the
+reciprocal lattice.
 """
 function orbitals_from_unk(unk::UNK, homecell::HomeCell, k::KPoint)
 
@@ -319,20 +320,33 @@ function orbitals_from_unk(unk::UNK, homecell::HomeCell, k::KPoint)
 
     function reciprocal_orbital(b)
         o = fft(single_orbital_from_unk(unk, homecell, k, b))
-        # wtp_normalize!(o)
         o = standard_brillouin_zone(o, k)
     end
 
     reciprocal_orbital.(collect(1:unk.n_band))
 end
 
-function estimate_sizes(wave_functions::WFC, i::Int, domain_scaling_factor::Number) 
+"""
+Estimate the size of the reciprocal lattice/homecell lattice.
+
+It has to be large enough to hold all the planewaves and some slack space for
+phase shifting. A slack of 1 is necessary for correctly representing the wave functions
+within the first Brillouin zone because QE/Wannier90 do not use the first Brillouin zone.
+
+Additional slack my be needed for representing wave functions outside the first
+Brillouin zone, which occur in finite difference schemes.  The slack factor
+depends on the scheme. Gor the finite different scheme in MLWF, a slack of 1
+should suffice.
+"""
+function estimate_sizes(wave_functions::WFC, i::Int, domain_scaling_factor::Number, phase_shift_slack::Integer=1) 
     domain_scaling_factor == 2 && return 2 * domain_scaling_factor * (max(abs.(wave_functions.miller[i, :])...))
+    domain_scaling_factor == 1 || error("Only a domain scaling factor of 1 and 2 are currently supported")
     function one_dim_size(i::Int)
         half_domain = max(abs.(wave_functions.miller[i, :])...)
-        return 2*(half_domain + overflow_slack)
+        return 2 * (half_domain + phase_shift_slack)
     end
 
+    return one_dim_size.(1:3)
 end
 
 """
@@ -371,9 +385,9 @@ function load_evc!(w::WFC)
     for _ = 1:4
         read(data)
     end
-    w.evc = zeros(ComplexF32, w.n_polerizations * w.max_n_planewaves, w.n_band)
+    w.evc = zeros(ComplexFxx, w.n_polerizations * w.max_n_planewaves, w.n_band)
     for i = 1:w.n_band
-        w.evc[:, i] = read(data, (ComplexF32, w.n_polerizations * w.max_n_planewaves))
+        w.evc[:, i] = read(data, (ComplexF64, w.n_polerizations * w.max_n_planewaves))
     end
     close(data)
 end
@@ -393,7 +407,7 @@ or from the energy cutoff for the density.
 Settting this to 2 gives the same FFT as QE.
 """
 
-function wannier_from_save(wave_functions_list::AbstractVector{WFC}, domain_scaling_factor=1)
+function wannier_from_save(wave_functions_list::AbstractVector{WFC}, domain_scaling_factor::Integer=2)
     # wave_functions_list = wave_functions_from_directory(save_dir)
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
@@ -413,11 +427,11 @@ function wannier_from_save(wave_functions_list::AbstractVector{WFC}, domain_scal
     return wannier
 end
 
-function wannier_from_unk_dir(unk_dir::String, wave_functions_list::AbstractVector{WFC})
+function wannier_from_unk_dir(unk_dir::String, wave_functions_list::AbstractVector{WFC}, domain_scaling_factor::Integer=2)
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
     wannier = init_wannier(brillouin_zone)
-    sizes = Tuple(maximum((w) -> estimate_sizes(w, i), wave_functions_list) for i = 1:3)
+    sizes = Tuple(maximum((w) -> estimate_sizes(w, i, domain_scaling_factor), wave_functions_list) for i = 1:3)
 
     for w in wave_functions_list
         k = k_map[w.i_kpoint]
@@ -443,7 +457,7 @@ struct MMN
     n_band::Int64
     n_kpoint::Int64
     n_neighbor::Int64
-    integrals::Dict{Pair{Integer, Integer}, Matrix{ComplexF32}}
+    integrals::Dict{Pair{Integer, Integer}, Matrix{ComplexFxx}}
     translations::Dict{Pair{Integer, Integer}, Tuple{Integer, Integer, Integer}}
 end
 
@@ -497,7 +511,7 @@ struct AMN
     n_band::Int64
     n_kpoint::Int64
     n_wannier::Int64
-    gauge::Dict{Int64, Matrix{ComplexF32}}
+    gauge::Dict{Int64, Matrix{ComplexFxx}}
 end
 
 """
@@ -520,7 +534,7 @@ function AMN(amn_filename::String)
             m, n, i_kpoint = (s->parse(Int64, s)).([m, n, i_kpoint])
             real_part, complex_part = (s->parse(Float32, s)).([real_part, complex_part])
 
-            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexF32, (n_band, n_band)))
+            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_band)))
             amn.gauge[i_kpoint][m, n] = real_part + complex_part * 1im
         end
     end
@@ -534,7 +548,7 @@ Create a gauge from an AMN object.
 """
 
 function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int64, KPoint}, orthonormalization=true)
-    # g = Dict{KPoint, Matrix{ComplexF32}}()
+    # g = Dict{KPoint, Matrix{ComplexFxx}}()
     gauge = Gauge(grid)
 
     orthonormalize(A::AbstractMatrix) = let (U, _, V) = svd(A)

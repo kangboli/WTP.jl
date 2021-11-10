@@ -1,5 +1,3 @@
-using OrderedCollections
-
 export kpoint,
     kpoint!,
     i_kpoint,
@@ -59,7 +57,7 @@ Base.:*(o_1::AbstractUnkOrbital, o_2::Any) = braket(o_1, o_2)
 
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T
-    elements::AbstractArray{ComplexF32,3}
+    elements::AbstractArray{ComplexFxx,3}
     kpoint::KPoint
     index_band::Integer
     ket::Bool
@@ -68,7 +66,7 @@ end
 
 function UnkBasisOrbital(
     grid::T,
-    elements::AbstractArray{ComplexF32,3},
+    elements::AbstractArray{ComplexFxx,3},
     kpoint::KPoint,
     index_band::Integer,
 ) where {T} 
@@ -100,7 +98,7 @@ function standardize(orbital::UnkBasisOrbital)
     length(non_zeros) == 0 && return orbital
 
     new_orbital = translate(orbital, -amount)
-    elements!(new_orbital, zeros(ComplexF32, size(grid(orbital))))
+    elements!(new_orbital, zeros(ComplexFxx, size(grid(orbital))))
     circshift!(elements(new_orbital), elements(orbital), Tuple(coefficients(amount)))
     return new_orbital
 end

@@ -9,7 +9,6 @@ homecell_basis = (Vector3(0, sqrt(3)/2, 0), Vector3(1, 1/2, sqrt(3)/2), Vector3(
 sizes = (4, 6, 8)
 homecell = HomeCell(homecell_basis, size_to_domain(sizes))
 lattice = transform_grid(homecell)
-homecell == transform_grid(lattice)
 
 # Reciprocal basis vectors should multiply to 2 π.
 # A * B = 2 π.
