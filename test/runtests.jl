@@ -1,11 +1,11 @@
 using WTP
 using Test
 using LinearAlgebra
-using ProfileView
 using Profile
 
 const test_1_dir = "./test/test_data/test_1"
 const test_2_dir = "./test/test_data/test_2"
+const test_3_dir = "./test/test_data/test_3"
 
 include("test_grid.jl")
 include("test_grid_vector.jl")

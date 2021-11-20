@@ -123,7 +123,8 @@ and vice versa.
 
 ## The MMN File
 
-Fortran people don't use grammar.
+Note that the following description does not apply when the gamma trick is used.
+See the gamma trick section for additional information.
 
 ### The Header
 
@@ -156,6 +157,32 @@ So line `(i-1) * n_band + j` stores row `j` column `i`, which
 is the inner product of band `j` of `k` and band `i` of `k+b`.
 In other words, $\langle u_{j k} | u_{i k+b} \rangle$ is at `(i-1) * n_band + j`.
 
+## The Gamma Trick
+
+TODO: Figure out why there is only factor of 2 instead of 8 reduction.
+
+The gamma trick is scarcely documented and confused me very much.
+In my opinion, it really shouldn't be a stand-along trick, which 
+pollutes the code base with an exception case all over the place.
+It should be abstracted away as part of the storage layer.
+
+### The Trick.
+
+The trick is that only half (why not 1/8) of the wave-function needs to be 
+stored when the calculation is `gamma_only`. The question that is nowhere
+documented in the code base is what "half" means. After much reverse engineering,
+it turns out that their (positive) half can be characterized as
+
+```
+i * n_y * n_z + j * n_z + k >= 0
+```
+
+Here `i`, `j`, `k` are the array indices and `n_y`, `n_z` are the array size.
+This design is painful to work with since people have to be constantly 
+aware of the trick and make a special case every step of the way.
+Thus, we will just implement this in one place as a storage optimization that 
+is abstracted away from the programming interface.
+
 ## Programming Guide and Rants
 
 Take a look at the programming practices of Quantum Espresso, and avoid them all.
@@ -173,6 +200,8 @@ The only special cases are
 1. The acronym is common knowledge. For example, "fft" (fast Fourier transform) is not a problem, but "bz" (Brillouin Zone) is not acceptable. It may very well mean Benzene, buzz, booz, bizarre, or Benz.
 2. When interfacing with QE/Wannier90. One can reuse the mystical variable names to make the correspondence explicit.
 
+Don't spell the same word two ways, especially when they are next to each other. 
+Write "localization" instead of "localisation".
 
 ### Global Variables.
 
@@ -189,20 +218,33 @@ programs! It is remarkable that one can do this can the program will still work.
 **No more than two levels of indentation is allowed for control flow**.
 
 Code becomes thoroughly incomprehensible when deeply nested. Indentations in QE 
-can wrap around the monitor if you are in protrait mode. Generally, it is never neccessary to
+can wrap around the monitor if you are in portrait mode. Generally, it is never necessary to
 indent more than 2 levels. To reduce the level of indentation, there is a handful of tricks:
 
-1. Abstract any indented peice of code into a function.
+1. Abstract any indented piece of code into a function.
 2. Use `&&`, `||`, and `? :` expressions instead of `if` statement for early `return`/`continue`.
 3. Use broadcasting/comprehension for parallel code, and recursions for complex iterative code.
     No `for`/`while` loops shall be nested.
 
-### Documentation
+### Write code that does not require explanation.
 
-**Comments will be ignored**.
+Avoid using comments in the source code for documentation purposes.  Use
+sensible variable names and function names. If a piece of code is obscure,
+refactor it into a function and give it a sensible name.
 
-Avoid using comments in the source code for documentation purposes. If a piece
-of code requires documentation, refactor it into a function and document it with
-an appropriate function name and a doc string with usage. Using comments is
-otherwise fine especially in scripts and tests.
+Writing self-documenting code gives several advantages
+
+1. gives a literal and algorithmic explanation instead of some figurative allegories that have to be interpreted.
+2. remains consistent after code change. People don't update comments when they
+   change the code, especially when they didn't write the comments themselves.
+
+Unless you are writing Fortran or C, having to explaining your code with
+comments usually means that you are doing something stylistically wrong with
+your code. If the code is so complex that it cannot be written in a
+comprehensible way even with unicode, rewriting it in English will only make it
+worse. In that case, it probably requires a dedicated document.
+
+
+
+
 

@@ -1,17 +1,27 @@
 
-export FiniteDifference, W90FiniteDifference, finite_difference, find_shells,
-compute_weights, spread, neighbor_shells, weights, populate_integral_table!, center,
-neighbor_basis_integral, second_moment
+export FiniteDifference,
+    W90FiniteDifference,
+    finite_difference,
+    find_shells,
+    compute_weights,
+    spread,
+    shells,
+    weights,
+    populate_integral_table!,
+    center,
+    neighbor_basis_integral,
+    second_moment
 
 abstract type FiniteDifference end
 
 """
-    neighbor_shells(scheme)
+    shells(scheme)
 
 Shells of neighbors of the gamma point within a finite different scheme.
 Each shell is a vector of kpoints.
 """
-neighbor_shells(scheme::FiniteDifference)::AbstractVector{Vector{KPoint}} = scheme.neighbor_shells
+shells(scheme::FiniteDifference)::AbstractVector{Vector{KPoint}} =
+    scheme.neighbor_shells
 
 """
     weights(scheme)
@@ -30,7 +40,7 @@ neighbor_basis_integral(scheme::FiniteDifference) = scheme.neighbor_basis_integr
 Find the set of relevant neighbors for a kpoint under a scheme.
 """
 function find_neighbors(kpoint::KPoint, scheme::FiniteDifference)
-    dk_list = vcat(neighbor_shells(scheme)...)
+    dk_list = vcat(shells(scheme)...)
     return (dk -> kpoint + dk).([dk_list; -dk_list])
 end
 
@@ -46,15 +56,21 @@ end
 """
 The Brillouin zone on which the finite difference scheme is defined.
 """
-grid(scheme::W90FiniteDifference) = grid(neighbor_shells(scheme)[1][1])
+grid(scheme::W90FiniteDifference) = grid(shells(scheme)[1][1])
 
 function find_shells(u::Wannier, n_shell::Int)
     shells = SortedDict{Real,Vector{KPoint}}()
-    
-    for k in grid(u)
+    d = collect(-2*n_shell:2*n_shell)
+    for i in d, j in d, k in d
+        k = KPoint(grid(u), [i, j, k], true)
         key = round(norm(cartesian(k)), digits = 5)
         haskey(shells, key) ? append!(shells[key], [k]) : shells[key] = [k]
     end
+
+    # for k in grid(u)
+    #     key = round(norm(cartesian(k)), digits = 5)
+    #     haskey(shells, key) ? append!(shells[key], [k]) : shells[key] = [k]
+    # end
     return collect(values(shells))[2:n_shell+1]
 end
 
@@ -75,7 +91,8 @@ function compute_weights(neighbor_shells::AbstractVector{Vector{KPoint}})
     A = zeros((6, length(neighbor_shells)))
     c(b, i) = cartesian(b)[i]
     for s = 1:length(neighbor_shells)
-        A[:, s] = [sum((b -> c(b, i) * c(b, j)).(neighbor_shells[s])) for (i, j) in keys(indices)]
+        A[:, s] =
+            [sum((b -> c(b, i) * c(b, j)).(neighbor_shells[s])) for (i, j) in keys(indices)]
     end
 
     q = [i == b ? 1 : 0 for (i, b) in keys(indices)]
@@ -89,47 +106,35 @@ function W90FiniteDifference(u::Wannier, n_shells = 1)
     weights = compute_weights(neighbor_shells)
     weights === nothing && return W90FiniteDifference(u, n_shells + 1)
     neighbor_integral = NeighborIntegral()
-    
+
     scheme = W90FiniteDifference(neighbor_shells, weights, neighbor_integral)
     populate_integral_table!(scheme, u)
     return scheme
 end
 
 function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
-    result = zeros(ComplexFxx, 3)
-    N = prod(size(collect(grid(scheme))))
-
-    function add_kpoint_contribution!(k::KPoint)
-        for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))
-            for b in shell
-                result -= w * cartesian(b) * imag(log(M[k, k+b][n, n]))
+    function kpoint_contribution(k::KPoint)
+        -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+            sum(shell) do b
+                w * cartesian(b) * imag(log(M[k, k+b][n, n]))
             end
         end
     end
 
-    for k in grid(scheme)
-        add_kpoint_contribution!(k)
-    end
-    return result / N
+    brillouin_zone = collect(grid(scheme))
+    return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
 
 function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
-    result = 0
-    N = prod(size(collect(grid(scheme))))
-
-    function add_kpoint_contribution!(k::KPoint)
-        for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))
-            for b in shell
-                result += w * ((1-abs2(M[k, k+b][n, n])) + imag(log(M[k, k+b][n, n]))^2)
+    function kpoint_contribution(k::KPoint)
+        sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+            sum(shell) do b
+                w * (1 - abs2(M[k, k+b][n, n]) + imag(log(M[k, k+b][n, n]))^2)
             end
         end
     end
-
-    for k in grid(scheme)
-        add_kpoint_contribution!(k)
-    end
-
-    return result / N
+    brillouin_zone = collect(grid(scheme))
+    return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
 
 function populate_integral_table!(scheme::W90FiniteDifference, wannier::Wannier)
@@ -159,11 +164,3 @@ function populate_integral_table!(scheme::W90FiniteDifference, wannier::Wannier)
     return M
 end
 
-
-    # @showprogress for kpoint in collect(extended_brillouin_zone)
-    #     # println(i, ", kpoint: ", coefficients(kpoint), ", n neighbor: ", length(neighbors))
-    #     for neighbor in filter(x -> x in extended_brillouin_zone, find_neighbors(kpoint, scheme))
-    #         M[neighbor, kpoint] !== nothing && continue
-    #         M[kpoint, neighbor] = mmn_matrix(kpoint, neighbor)
-    #     end
-    # end

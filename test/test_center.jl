@@ -4,6 +4,8 @@
 wave_functions_list = wave_functions_from_directory(joinpath(test_2_dir, "si.save"))
 wannier = wannier_from_save(wave_functions_list);
 
+brillouin_zone = grid(wannier)
+
 ## Get the map of kpoints.
 
 k_map, _ = i_kpoint_map(wave_functions_list)

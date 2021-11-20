@@ -52,8 +52,8 @@ function braket(o_1::AbstractUnkOrbital, o_2::AbstractUnkOrbital)
     return transpose(v_1) * v_2
 end
 
-Base.:*(o_1::Any, o_2::AbstractUnkOrbital) = braket(o_1, o_2)
-Base.:*(o_1::AbstractUnkOrbital, o_2::Any) = braket(o_1, o_2)
+# Base.:*(o_1::Any, o_2::AbstractUnkOrbital) = braket(o_1, o_2)
+# Base.:*(o_1::AbstractUnkOrbital, o_2::Any) = braket(o_1, o_2)
 
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T
@@ -88,6 +88,11 @@ function dagger!(orbital::UnkBasisOrbital)
     orbital.ket = !orbital.ket
 end
 
+function resemble(orbital, ::Type{UnkBasisOrbital{T}}) where T
+    g = grid(orbital)
+    elements = zeros(ComplexFxx, size(g))
+    UnkBasisOrbital( g, elements, kpoint(orbital), index_band(orbital)) 
+end
 
 """
 This implementation is faster with circshift.
@@ -219,7 +224,7 @@ function add(o_1::UnkOrbital, o_2::UnkOrbital, mutual_orthonormal = false)
         coefficients_dict[k] = haskey(coefficients_dict, k) ? coefficients_dict[k] + v : v
     end
 
-    # Basis orthonormalgonality is not checked.
+    # Basis orthogonality is not checked.
 
     UnkOrbital(
         collect(values(coefficients_dict)),
@@ -250,4 +255,24 @@ function compare(o_1, o_2)
     c_1[1] == c_2[1] && c_1[2] == c_2[2] && return c_1[3] < c_2[3]
     c_1[1] == c_2[1] && return c_1[2] < c_2[2]
     return c_1[1] < c_2[1]
+end
+
+consolidate(orbital::UnkBasisOrbital) = (grid(orbital), elements(orbital))
+
+function consolidate(orbital::UnkOrbital)
+    elements = nothing
+    grid = nothing
+    for (c, b) in zip(coefficients(orbital), basis(orbital))
+        new_grid, new_elements = consolidate(b)    
+        grid === nothing && (grid = new_grid)
+        grid == new_grid || error("Grids Mismatching.")
+        elements === nothing && (elements = zeros(ComplexFxx, size(new_grid)))
+        elements += c * new_elements
+    end
+    return grid, elements
+end
+
+function UnkBasisOrbital(orbital::UnkOrbital)
+    grid, elements = consolidate(orbital)
+    UnkBasisOrbital( grid, elements, kpoint(orbital), index_band(orbital))
 end

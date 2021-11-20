@@ -35,7 +35,7 @@ n, N = 3, length(collect(grid(wannier)))
 center = zeros(ComplexFxx, 3)
 
 for k in grid(wannier)
-    for (w, shell) in zip(weights(scheme), neighbor_shells(scheme))
+    for (w, shell) in zip(weights(scheme), shells(scheme))
         for b in shell
             # neighbor_integral[k, k+b]
             center += -1 / N * w * cartesian(b) * imag(log(neighbor_integral[k, k+b][n, n]))

@@ -27,3 +27,5 @@ isapprox(homecell_basis_mat, vector3_to_matrix(basis(transform_grid(lattice))))
 homecell_2 = HomeCell(homecell_basis, ((-1, 2), (-3, 0), (-1, 2)))
 @test length([g for g in homecell_2]) == 64
 
+norms_of_g = map(g->norm(cartesian(g)), lattice)
+@test norms_of_g[lattice[0, 0, 0]] == 0

@@ -56,15 +56,28 @@ function Base.getindex(on_grid::OnGrid, grid_vector::GridVector)
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
     offsets = translation(on_grid)
     indices = miller_to_standard(grid_vector, offsets)
-    element(on_grid, indices...)
+    return element(on_grid, indices...)
 end
 
-function Base.setindex!(on_grid::OnGrid, val, grid_vector::GridVector)
+function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:GridVector})
+    # TODO: Implement error checking.
+    offsets = translation(on_grid)
+    index_array = (v->miller_to_standard(v, offsets)).(grid_vector_array)
+    return (I->element(on_grid, I...)).(index_array)
+end
+
+function Base.setindex!(on_grid::OnGrid, value, grid_vector::GridVector)
     !has_overflow(grid_vector) || error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
     offsets = translation(on_grid)
     indices = miller_to_standard(grid_vector, offsets)
-    element!(on_grid, val, indices...)
+    element!(on_grid, value, indices...)
+end
+
+function Base.setindex!(on_grid::OnGrid, value_array::AbstractArray, grid_vector_array::AbstractArray{<:GridVector})
+    offsets = translation(on_grid)
+    index_array = (v->miller_to_standard(v, offsets)).(grid_vector_array)
+    map((v, i)->element!(on_grid, v, i...), value_array, index_array)
 end
 
 """
@@ -147,3 +160,68 @@ function standardize(on_grid::OnGrid)
     end
     return new_on_grid
 end
+
+function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<: Number})
+    standardize(translate(on_grid, grid(on_grid)[translation...]))
+end
+
+struct SimpleFunctionOnGrid{T} <: OnGrid{T}
+    grid::T
+    elements::AbstractArray{<:Any, 3}
+    ket::Bool
+end
+
+function Base.map(f::Function, grid::T) where T <: Grid
+    raw_elements = map(f, grid[:,:,:])
+    shifted_elements = circshift(raw_elements, [x_min(grid), y_min(grid), z_min(grid)])
+    result = SimpleFunctionOnGrid{T}(grid, shifted_elements, true)
+    return result
+end
+
+function resemble(on_grid, ::Type{SimpleFunctionOnGrid{T}}) where T
+    g = grid(on_grid)
+    SimpleFunctionOnGrid(g, zeros(T, size(g)), ket(g))
+end
+
+function add(o_1::T, o_2::S) where {T <: OnGrid, S <: OnGrid}
+    grid(o_1) == grid(o_2) || error("Mismatching Grids.")
+    ket(o_1) == ket(o_2) || error("Adding bra to ket.")
+    o_3 = resemble(o_2, T)
+    elements!(o_3, elements(o_1) + elements(o_2))
+    return o_3
+end
+
+function negate(o_1::T) where T <: OnGrid
+    o_2 = resemble(o_1, T)
+    elements!(o_2, -elements(o_1))
+    return o_2
+end
+
+function minus(o_1::OnGrid, o_2::OnGrid)
+    add(o_1, negate(o_2))
+end
+
+function mul(o_1::T, o_2::S) where {T <: OnGrid, S <: OnGrid}
+    grid(o_1) == grid(o_2) || error("Mismatching Grids.")
+    ket(o_1) == ket(o_2) || error("elementwise product cannot take a bra and a ket.")
+    o_3 = resemble(o_2, S)
+    elements!(o_3, elements(o_1) .* elements(o_2))
+    return o_3
+end
+
+function mul(scalar::Number, o_1::OnGrid)
+    o_2 = resemble(o_1, T)
+    elements!(o_2, scalar * elements(o_1))
+    return o_2
+end
+
+Base.:+(o_1::OnGrid, o_2::OnGrid) = add(o_1, o_2)
+Base.:-(o_1::OnGrid) = negate(o_1)
+Base.:-(o_1::OnGrid, o_2::OnGrid) = minus(o_1, o_2)
+Base.:*(scalar, o_1::OnGrid) = mul(scalar, o_1)
+Base.:*(vector::AbstractVector, o_1::OnGrid) = [mul(s, o_1) for s in vector]
+Base.:*(o_1::OnGrid, scalar) = mul(scalar, o_1)
+Base.:*(o_1::OnGrid, vector::AbstractVector) = mul(vector, o_1)
+
+Base.:*(o_1::OnGrid, o_2::OnGrid) = ket(o_1) == ket(o_2) ? mul(o_1, o_2) : braket(o_1, o_2)
+Base.adjoint(o_1::OnGrid) = dagger(o_1)

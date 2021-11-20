@@ -1,0 +1,17 @@
+&inputpp 
+   outdir = './'
+   prefix = 'benzene'
+   seedname = 'benzene'
+   spin_component = 'none'
+   write_mmn = .true.
+   write_amn = .true.
+% if write_unk:
+  write_unk  = .true.
+% endif
+   wvfn_formatted = .true.
+% if scdm:
+   scdm_proj = true
+   scdm_entanglement = 'isolated'
+% endif
+   wan_mode = 'standalone'
+/
