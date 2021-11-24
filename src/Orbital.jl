@@ -57,7 +57,7 @@ end
 
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T
-    elements::AbstractArray{ComplexFxx,3}
+    elements::AbstractArray
     kpoint::KPoint
     index_band::Integer
     ket::Bool
@@ -66,7 +66,7 @@ end
 
 function UnkBasisOrbital(
     grid::T,
-    elements::AbstractArray{ComplexFxx,3},
+    elements::AbstractArray,
     kpoint::KPoint,
     index_band::Integer,
 ) where {T} 

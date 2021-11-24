@@ -109,8 +109,10 @@ Base.hash(grid_vec::GridVector) = hash(coefficients(grid_vec)) + hash(ket(grid_v
 
 The Cartesian coordinates of a grid vector.
 """
-cartesian(grid_vec::GridVector)::Vector{Number} = basis_transform(
-    coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
+cartesian(grid_vec::GridVector)::Vector{Number} = 
+    vector3_to_matrix(basis(grid_vec)) * coefficients(grid_vec)
+# cartesian(grid_vec::GridVector)::Vector{Number} = basis_transform(
+#     coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
 
 """
 Convert a grid vector to an integer as a linear index.

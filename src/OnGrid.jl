@@ -167,13 +167,13 @@ end
 
 struct SimpleFunctionOnGrid{T} <: OnGrid{T}
     grid::T
-    elements::AbstractArray{<:Any, 3}
+    elements::AbstractArray
     ket::Bool
 end
 
 function Base.map(f::Function, grid::T) where T <: Grid
-    raw_elements = map(f, grid[:,:,:])
-    shifted_elements = circshift(raw_elements, [x_min(grid), y_min(grid), z_min(grid)])
+    raw_elements = map(f, array(grid))
+    shifted_elements = circshift(raw_elements, mins(grid))
     result = SimpleFunctionOnGrid{T}(grid, shifted_elements, true)
     return result
 end

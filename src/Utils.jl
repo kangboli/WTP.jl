@@ -8,13 +8,9 @@ Convert a set of three sizes into a domain.
 sizes must be an iterable of numbers.
 """
 function size_to_domain(sizes) 
-    n_x, n_y, n_z = Int.(sizes)
-    function domain(s::Int)
-        iseven(s) && return (-s ÷ 2, s ÷ 2 - 1)
-        isodd(s) && return (-s ÷ 2, s ÷ 2)
-    end
+    domain(s::Int) = iseven(s) ? (-s ÷ 2, s ÷ 2 - 1) : (-s ÷ 2, s ÷ 2)
 
-    return (domain(n_x), domain(n_y), domain(n_z))
+    return Tuple(domain(n) for n in Int.(sizes))
 end
 
 function indent(str::String)
@@ -66,7 +62,7 @@ with offsets go from -n-o to n-o.
 Convert a set of miller indices to standard indices. 
 """
 miller_to_standard(
-    sizes::Tuple{Int64,Int64,Int64},
+    sizes,
     indices::AbstractVector{Int64},
     offsets::AbstractVector{Int64},
 ) = collect(
@@ -84,7 +80,7 @@ miller_to_standard(
 Convert a set of standard indices to miller indices.
 """
 standard_to_miller(
-    sizes::Tuple{Int64,Int64,Int64},
+    sizes,
     indices::AbstractVector{Int64},
     offsets::AbstractVector{Int64},
 ) = collect(

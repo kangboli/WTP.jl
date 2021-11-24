@@ -7,7 +7,7 @@
 
     ## Find shells
 
-    neighbor_shells = find_shells(wannier, 1)
+    neighbor_shells = find_shells(grid(wannier), 1)
     @test g[-1, -1, -1] in shells[1]
     @test g[1, 1, 1] in shells[1]
     @test g[0, 0, 1] in shells[1]

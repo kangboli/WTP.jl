@@ -2,6 +2,7 @@ export Wannier,
     init_wannier,
     Gauge,
     gauge,
+    gauge!,
     NeighborIntegral,
     find_neighbors,
     integrals,
@@ -31,6 +32,7 @@ struct Wannier{T <: OnGrid} <: OnGrid{BrillouinZone}
 end
 
 gauge(wannier::Wannier) = wannier.gauge
+gauge!(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
 reciprocal_lattice(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
 
 function init_wannier(grid::BrillouinZone)

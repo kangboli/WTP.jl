@@ -37,6 +37,10 @@ y_max(grid::Grid) = domain(grid)[2][2]
 z_min(grid::Grid) = domain(grid)[3][1]
 z_max(grid::Grid) = domain(grid)[3][2]
 
+mins(grid::Grid) = [d[1] for d in domain(grid)]
+maxes(grid::Grid) = [d[2] for d in domain(grid)]
+array(grid::Grid) = grid[:,:,:]
+
 """
     center(grid)
 
@@ -111,17 +115,13 @@ Base.getindex(g::Grid, linear_indices::Range) = [g[i] for i in linear_indices]
 Iterate over the grid gives a sequence of grid vectros that goes through each grid point.
 """
 function Base.iterate(grid::Grid)
-    # n_x, n_y, n_z = size(grid)
-    # (n_x < 1 || n_y < 1 || n_z < 1) && return nothing
     # miller = Iterators.product(
-    #     -div(n_x, 2):div(n_x, 2)-1,
-    #     -div(n_y, 2):div(n_y, 2)-1,
-    #     -div(n_z, 2):div(n_z, 2)-1)
+    #     x_min(grid):x_max(grid),
+    #     y_min(grid):y_max(grid),
+    #     z_min(grid):z_max(grid)
+    #     )
 
-    miller = Iterators.product(
-        x_min(grid):x_max(grid),
-        y_min(grid):y_max(grid),
-        z_min(grid):z_max(grid))
+    miller = Iterators.product([l:u for (l, u) in zip(mins(grid), maxes(grid))]...)
     first, miller_state = iterate(miller)
     return (grid_vector_constructor(grid, [first...]), (miller, miller_state))
 end
@@ -145,7 +145,6 @@ transform_grid(grid::T) where T <: Grid =
     let A = vector3_to_matrix(basis(grid)) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
         dual_grid(T)(matrix_to_vector3(B), size_to_domain(size(grid)))
     end
-
 
 """
 Snap a coordinate to a grid point.  

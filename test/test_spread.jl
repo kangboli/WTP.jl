@@ -46,24 +46,3 @@ s, c = spread(wannier, 1, scheme)
 s, c = spread(wannier, 2, scheme)
 s, c = spread(wannier, 13, scheme)
 s, c = spread(wannier, 4, scheme)
-
-# for k in grid(wannier)
-#     println(length(wannier[k]))
-# end
-
-# s, c = spread(wannier, 1)
-# s, c = spread(wannier, 6)
-# integrals[g[0,0,0], g[1,0,0]][1, 1]
-# integrals[g[0,0,0], g[0,0,1]][1, 1]
-# b_1, b_2, b_3 = basis(grid(g[1,0,0]))
-# collect(grid(g[1,0,0]))
-# B = vector3_to_matrix(basis(g))
-# norm(coefficients(g[1,0,0]))
-# 3 / (8*norm(basis_transform(coefficients(g[1,0,0]), basis(g[1,0,0]), CARTESIAN_BASIS))^2)
-# inv(B)
-
-
-# neighbor_shells = find_shells(wannier, 1)
-# weights = WTP.compute_weights(neighbor_shells)
-
-# grad = finite_difference(wannier, 1, g[1,0, 0], neighbor_shells, weights)

@@ -22,7 +22,7 @@ b_2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
 
 
 @testset "Linear Combinationination of Orbitals" begin
-    wannier = wannier_from_save(joinpath(experiment_dir, "si.save"));
+    wannier = wannier_from_save(joinpath(test_1_dir, "si.save"));
     gamma_point = grid(wannier)[0, 0, 0]
     u1gamma = wannier[gamma_point][1]
     u2gamma = wannier[gamma_point][2]

@@ -455,7 +455,6 @@ function wannier_from_save(
     wave_functions_list::AbstractVector{WFC},
     domain_scaling_factor::Integer = 2,
 )
-    # wave_functions_list = wave_functions_from_directory(save_dir)
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
     wannier = init_wannier(brillouin_zone)
@@ -465,7 +464,6 @@ function wannier_from_save(
 
     @showprogress for w in wave_functions_list
         k = k_map[w.i_kpoint]
-        # elements(gauge(wannier))[miller_to_standard(k, translation(wannier))...] =
         gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, w.n_band, w.n_band)
 
         load_evc!(w)
@@ -473,7 +471,6 @@ function wannier_from_save(
             matrix_to_vector3(wave_function_basis(w)),
             size_to_domain(sizes),
         )
-        # elements(wannier)[miller_to_standard(k, translation(wannier))...] =
         wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k)
     end
     return wannier
@@ -494,10 +491,8 @@ function wannier_from_unk_dir(
     for w in wave_functions_list
         k = k_map[w.i_kpoint]
         unk = UNK("$(unk_dir)/UNK$(lpad(w.i_kpoint, 5, "0")).1")
-        # wannier.gauge[miller_to_standard(k, translation(wannier))...] =
         gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, unk.n_band, unk.n_band)
 
-        # println("reading k point: $(coefficients(k))\n ik: $(w.i_kpoint)")
         reciprocal_lattice = ReciprocalLattice(
             matrix_to_vector3(wave_function_basis(w)),
             size_to_domain(sizes),
@@ -505,9 +500,7 @@ function wannier_from_unk_dir(
         homecell = transform_grid(reciprocal_lattice)
         reciprocal_orbitals = orbitals_from_unk(unk, homecell, k)
         (o -> i_kpoint!(o, w.i_kpoint)).(reciprocal_orbitals)
-        # wannier.elements[miller_to_standard(k, translation(wannier))...] =
         wannier[reset_overflow(k)] = reciprocal_orbitals
-
     end
 
     return wannier
@@ -537,19 +530,18 @@ function MMN(mmn_filename::String, ad_hoc_gamma = false)
     file = open(mmn_filename)
     parse_complex(number) =
         parse(Float32, number[1:20]) + parse(Float32, number[21:end]) * 1im
-    _ = readline(file) # Skip the date.
+    the_first_line_is_comment = readline(file)
     n_band, n_kpoint, n_neighbor = parse_line(readline(file), Int64)
     mmn = MMN(n_band, n_kpoint, n_neighbor, Dict(), Dict())
     lines = readlines(file)
 
-    r1, r2 = n_neighbor * (n_band^2 + 1), (n_band^2 + 1)
-    for l1 = 1:n_kpoint
-        # Threads.@threads 
-        for l2 = 1:n_neighbor
-            start = (l1 - 1) * r1 + (l2 - 1) * r2 + 1
-            i_kpoint, i_neighbor, gx, gy, gz = parse_line(lines[start], Int64)
-            ad_hoc_gamma && (i_neighbor = l2)
-            mmn.translations[i_kpoint=>i_neighbor] = (gx, gy, gz)
+    r_1, r_2 = n_neighbor * (n_band^2 + 1), (n_band^2 + 1)
+    for l_1 = 1:n_kpoint
+        for l_2 = 1:n_neighbor
+            start = (l_1 - 1) * r_1 + (l_2 - 1) * r_2 + 1
+            i_kpoint, i_neighbor, g_x, g_y, g_z = parse_line(lines[start], Int64)
+            ad_hoc_gamma && (i_neighbor = l_2)
+            mmn.translations[i_kpoint=>i_neighbor] = (g_x, g_y, g_z)
             mmn.integrals[i_kpoint=>i_neighbor] =
                 [parse_complex(lines[start+(i-1)*n_band+j]) for j = 1:n_band, i = 1:n_band]
         end

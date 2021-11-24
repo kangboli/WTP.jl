@@ -8,3 +8,5 @@ test/test_data/template
 !test/test_data/test_3/benzene.yaml
 .vscode/*
 *.cube
+notebooks/*
+.archive/*

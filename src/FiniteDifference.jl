@@ -58,26 +58,22 @@ The Brillouin zone on which the finite difference scheme is defined.
 """
 grid(scheme::W90FiniteDifference) = grid(shells(scheme)[1][1])
 
-function find_shells(u::Wannier, n_shell::Int)
+function find_shells(grid::Grid, n_shell::Int)
     shells = SortedDict{Real,Vector{KPoint}}()
     d = collect(-2*n_shell:2*n_shell)
     for i in d, j in d, k in d
-        k = KPoint(grid(u), [i, j, k], true)
+        k = grid_vector_constructor(grid, [i, j, k])
         key = round(norm(cartesian(k)), digits = 5)
         haskey(shells, key) ? append!(shells[key], [k]) : shells[key] = [k]
     end
 
-    # for k in grid(u)
-    #     key = round(norm(cartesian(k)), digits = 5)
-    #     haskey(shells, key) ? append!(shells[key], [k]) : shells[key] = [k]
-    # end
     return collect(values(shells))[2:n_shell+1]
 end
 
 """
 Solve Aw = q
 """
-function compute_weights(neighbor_shells::AbstractVector{Vector{KPoint}})
+function compute_weights(neighbor_shells::Vector{Vector{T}}) where T <: GridVector
 
     indices = SortedDict(
         (1, 1) => 1,
@@ -102,7 +98,7 @@ function compute_weights(neighbor_shells::AbstractVector{Vector{KPoint}})
 end
 
 function W90FiniteDifference(u::Wannier, n_shells = 1)
-    neighbor_shells = find_shells(u, n_shells)
+    neighbor_shells = find_shells(grid(u), n_shells)
     weights = compute_weights(neighbor_shells)
     weights === nothing && return W90FiniteDifference(u, n_shells + 1)
     neighbor_integral = NeighborIntegral()

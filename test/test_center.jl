@@ -74,25 +74,3 @@ spread(n) = second_moment(M, scheme, n) - norm(center(M, scheme, n))^2
 @test isapprox(spread(19), 13.83179659, atol = 1e-5)
 @test isapprox(spread(20), 23.16652774, atol = 1e-5)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
