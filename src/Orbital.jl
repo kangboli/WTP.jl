@@ -21,7 +21,7 @@ Such a function is also a basis vector and a linear combination.
 This is where the single subtyping system of Julia gives me migraine.
 """
 abstract type AbstractUnkOrbital{T} <: OnGrid{T} end
-const KPoint = GridVector{BrillouinZone}
+const KPoint = GridVector{BrillouinZone3D}
 
 Base.adjoint(orbital::AbstractUnkOrbital) = dagger(orbital)
 i_kpoint(orbital::AbstractUnkOrbital) = haskey(orbital.meta, :i_kpoint) ? orbital.meta[:i_kpoint] : nothing
@@ -58,7 +58,7 @@ end
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T
     elements::AbstractArray
-    kpoint::KPoint
+    kpoint::AbstractGridVector{<:BrillouinZone}
     index_band::Integer
     ket::Bool
     meta::Dict{Symbol,Any}
@@ -67,7 +67,7 @@ end
 function UnkBasisOrbital(
     grid::T,
     elements::AbstractArray,
-    kpoint::KPoint,
+    kpoint::AbstractGridVector{<:BrillouinZone},
     index_band::Integer,
 ) where {T} 
     orbital = UnkBasisOrbital{T}(grid, elements, kpoint, index_band, true, Dict()) 
@@ -113,11 +113,11 @@ Fast Fourier Transform of an orbital.
 
 This can be, and should be, parallelized with PencilFFT.jl
 """
-function fft(orbital::UnkBasisOrbital{HomeCell}) 
+function fft(orbital::UnkBasisOrbital{T}) where T <:HomeCell
     new_elements = FFTW.fft(elements(orbital))
     new_grid = transform_grid(grid(orbital))
 
-    return UnkBasisOrbital{dual_grid(HomeCell)}(
+    return UnkBasisOrbital{dual_grid(T)}(
         new_grid,
         new_elements,
         kpoint(orbital),
@@ -127,11 +127,11 @@ function fft(orbital::UnkBasisOrbital{HomeCell})
     ) |> wtp_normalize!
 end
 
-function ifft(orbital::UnkBasisOrbital{ReciprocalLattice})
+function ifft(orbital::UnkBasisOrbital{T}) where T<:ReciprocalLattice
     new_elements = FFTW.ifft(elements(orbital))
     new_grid = transform_grid(grid(orbital))
 
-    return UnkBasisOrbital{dual_grid(ReciprocalLattice)}(
+    return UnkBasisOrbital{dual_grid(T)}(
         new_grid,
         new_elements,
         kpoint(orbital),

@@ -7,7 +7,7 @@ using LinearAlgebra
 
 homecell_basis = (Vector3(0, sqrt(3)/2, 0), Vector3(1, 1/2, sqrt(3)/2), Vector3(0, 0, 1/2))
 sizes = (4, 6, 8)
-homecell = HomeCell(homecell_basis, size_to_domain(sizes))
+homecell = HomeCell3D(homecell_basis, size_to_domain(sizes))
 lattice = transform_grid(homecell)
 
 # Reciprocal basis vectors should multiply to 2 π.
@@ -24,7 +24,7 @@ isapprox(homecell_basis_mat, vector3_to_matrix(basis(transform_grid(lattice))))
 @test length([g for g in lattice]) == prod(sizes)
 
 # Iterating should work for domains not centered as well.
-homecell_2 = HomeCell(homecell_basis, ((-1, 2), (-3, 0), (-1, 2)))
+homecell_2 = HomeCell3D(homecell_basis, ((-1, 2), (-3, 0), (-1, 2)))
 @test length([g for g in homecell_2]) == 64
 
 norms_of_g = map(g->norm(cartesian(g)), lattice)

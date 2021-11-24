@@ -1,6 +1,7 @@
 export Grid, domain, domain!, basis, dual_grid, 
 HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
-x_min, x_max, y_min, y_max, z_min, z_max
+x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
+HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D
 
 """
 Abstract Grid. 
@@ -115,11 +116,6 @@ Base.getindex(g::Grid, linear_indices::Range) = [g[i] for i in linear_indices]
 Iterate over the grid gives a sequence of grid vectros that goes through each grid point.
 """
 function Base.iterate(grid::Grid)
-    # miller = Iterators.product(
-    #     x_min(grid):x_max(grid),
-    #     y_min(grid):y_max(grid),
-    #     z_min(grid):z_max(grid)
-    #     )
 
     miller = Iterators.product([l:u for (l, u) in zip(mins(grid), maxes(grid))]...)
     first, miller_state = iterate(miller)
@@ -185,27 +181,31 @@ This approach is to be contrasted with allocating a Fortran array and program
 functions as array manipulation.
 """
 
-struct HomeCell <: Grid
+abstract type HomeCell <: Grid end
+struct HomeCell3D <: HomeCell
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
-struct ReciprocalLattice <: Grid
+abstract type ReciprocalLattice <: Grid end 
+struct ReciprocalLattice3D <: ReciprocalLattice
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
-struct BrillouinZone <: Grid
+abstract type BrillouinZone <: Grid end
+struct BrillouinZone3D <: BrillouinZone
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
-struct RealLattice <: Grid
+abstract type RealLattice <: Grid end
+struct RealLattice3D <: RealLattice
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
-dual_grid(::Type{HomeCell}) = ReciprocalLattice
-dual_grid(::Type{ReciprocalLattice}) =  HomeCell
-dual_grid(::Type{BrillouinZone}) = RealLattice
-dual_grid(::Type{RealLattice}) = BrillouinZone
+dual_grid(::Type{HomeCell3D}) = ReciprocalLattice3D
+dual_grid(::Type{ReciprocalLattice3D}) =  HomeCell3D
+dual_grid(::Type{BrillouinZone3D}) = RealLattice3D
+dual_grid(::Type{RealLattice3D}) = BrillouinZone3D

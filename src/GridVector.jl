@@ -114,6 +114,8 @@ cartesian(grid_vec::GridVector)::Vector{Number} =
 # cartesian(grid_vec::GridVector)::Vector{Number} = basis_transform(
 #     coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
 
+LinearAlgebra.norm(grid_vector::GridVector) = norm(cartesian(grid_vector))
+
 """
 Convert a grid vector to an integer as a linear index.
 Indexing the underlying grid with this integer gives back

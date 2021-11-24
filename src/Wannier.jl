@@ -27,7 +27,7 @@ for the bands at that k-point.
 """
 struct Wannier{T <: OnGrid} <: OnGrid{BrillouinZone}
     grid::BrillouinZone
-    elements::Array{Vector{T},3}
+    elements::Array{Vector{T}, <:Any}
     gauge::Gauge
 end
 
@@ -36,13 +36,13 @@ gauge!(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
 reciprocal_lattice(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
 
 function init_wannier(grid::BrillouinZone)
-    elements = Array{Vector{UnkBasisOrbital{ReciprocalLattice}},3}(undef, size(grid))
+    elements = Array{Vector{UnkBasisOrbital{ReciprocalLattice3D}},3}(undef, size(grid))
     return Wannier(grid, elements, Gauge(grid))
 end
 
-function fft(wannier::Wannier{UnkBasisOrbital{HomeCell}}) 
+function fft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
     g = grid(wannier)
-    elements = Array{Vector{UnkBasisOrbital{dual_grid(HomeCell)}},3}(undef, size(g))
+    elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},3}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
     for k in g
         transformed[k] = fft.(wannier[k])
@@ -50,9 +50,9 @@ function fft(wannier::Wannier{UnkBasisOrbital{HomeCell}})
     return transformed
 end
 
-function ifft(wannier::Wannier{UnkBasisOrbital{ReciprocalLattice}}) 
+function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     g = grid(wannier)
-    elements = Array{Vector{UnkBasisOrbital{dual_grid(ReciprocalLattice)}},3}(undef, size(g))
+    elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},3}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
     for k in g
         transformed[k] = ifft.(wannier[k])

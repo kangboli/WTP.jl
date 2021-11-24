@@ -6,7 +6,7 @@ using WTP
 reciprocal_basis = CARTESIAN_BASIS
 
 sizes = (4, 4, 4)
-lattice = ReciprocalLattice(reciprocal_basis, size_to_domain(sizes))
+lattice = ReciprocalLattice3D(reciprocal_basis, size_to_domain(sizes))
 g = GridVector{ReciprocalLattice}(lattice, [0, 1, 2], true)
 # A grid vector is defined on a grid.
 @test grid(g) == lattice
@@ -56,7 +56,7 @@ o_1 = [0, 1, 1] / sqrt(2)
 o_2 = [1, 0, 1] / sqrt(2)
 o_3 = [0, 0, 1] / sqrt(2)
 oblique_basis = (Vector3(o_1...), Vector3(o_2...), Vector3(o_3...))
-reciprocal_lattice = ReciprocalLattice(oblique_basis, size_to_domain(sizes))
+reciprocal_lattice = ReciprocalLattice3D(oblique_basis, size_to_domain(sizes))
 homecell = transform_grid(reciprocal_lattice)
 @test isapprox(braket(dagger(homecell[0,0,1]), reciprocal_lattice[0,0,1]),  π/2, atol=1e-7)
 

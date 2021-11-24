@@ -2,7 +2,7 @@ export export_to_gaussian_cube
 
 function export_to_gaussian_cube(
     filename::String,
-    u::Wannier{UnkBasisOrbital{HomeCell}},
+    u::Wannier{UnkBasisOrbital{<:HomeCell}},
     band::AbstractVector{<:Number},
     atoms::Vector = [],
 )
