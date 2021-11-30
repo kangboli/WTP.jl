@@ -1,0 +1,1 @@
+Gamma point calculation tend to require a lot of special treatment.

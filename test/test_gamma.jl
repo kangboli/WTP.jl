@@ -11,7 +11,7 @@ k_map, _ = i_kpoint_map(wave_functions_list)
 amn = AMN(joinpath(test_3_dir, "output/pw2wan/benzene.amn"))
 U = Gauge(grid(wannier), amn, k_map)
 
-scheme = W90FiniteDifference(wannier, 1)
+scheme = W90FiniteDifference3D(wannier, 1)
 
 M = gauge_transform(neighbor_basis_integral(scheme), U)
 

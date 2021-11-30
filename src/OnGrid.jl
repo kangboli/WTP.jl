@@ -41,17 +41,17 @@ elements!(on_grid::OnGrid, new_elements) = on_grid.elements = new_elements
 
 
 
-miller_to_standard(grid_vector::GridVector, offsets::AbstractVector{Int64}) =
+miller_to_standard(grid_vector::AbstractGridVector, offsets::AbstractVector{Int64}) =
     miller_to_standard(size(grid(grid_vector)), coefficients(grid_vector), offsets)
 
-miller_to_standard(grid_vector::GridVector{T}, offsets::GridVector{T}) where {T} =
+miller_to_standard(grid_vector::AbstractGridVector{T}, offsets::AbstractGridVector{T}) where {T} =
     miller_to_standard(grid_vector, coefficients(offsets))
 
 """
 Indexing an OnGrid object with a grid vector gives the 
 element on the corresponding grid point.
 """
-function Base.getindex(on_grid::OnGrid, grid_vector::GridVector)
+function Base.getindex(on_grid::OnGrid, grid_vector::AbstractGridVector)
     !has_overflow(grid_vector) || error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
     offsets = translation(on_grid)
@@ -59,14 +59,14 @@ function Base.getindex(on_grid::OnGrid, grid_vector::GridVector)
     return element(on_grid, indices...)
 end
 
-function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:GridVector})
+function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:AbstractGridVector})
     # TODO: Implement error checking.
     offsets = translation(on_grid)
     index_array = (v->miller_to_standard(v, offsets)).(grid_vector_array)
     return (I->element(on_grid, I...)).(index_array)
 end
 
-function Base.setindex!(on_grid::OnGrid, value, grid_vector::GridVector)
+function Base.setindex!(on_grid::OnGrid, value, grid_vector::AbstractGridVector)
     !has_overflow(grid_vector) || error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
     offsets = translation(on_grid)
@@ -74,7 +74,7 @@ function Base.setindex!(on_grid::OnGrid, value, grid_vector::GridVector)
     element!(on_grid, value, indices...)
 end
 
-function Base.setindex!(on_grid::OnGrid, value_array::AbstractArray, grid_vector_array::AbstractArray{<:GridVector})
+function Base.setindex!(on_grid::OnGrid, value_array::AbstractArray, grid_vector_array::AbstractArray{<:AbstractGridVector})
     offsets = translation(on_grid)
     index_array = (v->miller_to_standard(v, offsets)).(grid_vector_array)
     map((v, i)->element!(on_grid, v, i...), value_array, index_array)
@@ -84,14 +84,14 @@ end
 Transalate/move on_grid by amount. 
 This is done virtually by shifting the domain of the underlying grid.
 """
-function translate(on_grid::OnGrid{T}, amount::GridVector{T}) where {T<:Grid}
+function translate(on_grid::OnGrid{T}, amount::AbstractGridVector{T}) where {T<:Grid}
     g = grid(on_grid)
     new_g = @set g.domain =
         Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
     @set on_grid.grid = new_g
 end
 
-function translate!(on_grid::OnGrid{T}, amount::GridVector{T}) where {T<:Grid}
+function translate!(on_grid::OnGrid{T}, amount::AbstractGridVector{T}) where {T<:Grid}
     g = grid(on_grid)
     new_g = @set g.domain =
         Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
@@ -130,15 +130,14 @@ end
 Same as normalize, but may modify the argument if mutable.
 """
 function wtp_normalize!(on_grid::OnGrid)
-    elems = elements(on_grid)
-    normalization_factor = norm(elems)
+    # elems = elements(on_grid)
+    normalization_factor = norm(elements(on_grid))
     # println(normalization_factor)
-    elements!(on_grid, elems / normalization_factor)
+    elements!(on_grid, elements(on_grid) / normalization_factor)
     return on_grid
 end
 
 """
-
 Standardize the representation of an OnGrid object.
 The resulting object will be defined from -N+1 (N) to N.
 Values outside the grid will be wrapped around.
@@ -147,25 +146,24 @@ Values outside the grid will be wrapped around.
 -N+1 -N+2 ...  0  1  2 ... N-1 N
 
 This operation does modify the underlying array.
-This default implementation is slow.
+# This implementation is faster with circshift.
 """
-function standardize(on_grid::OnGrid)
-    amount = translation(on_grid)
+function standardize(orbital::OnGrid)
+    amount = translation(orbital)
     non_zeros = filter(n -> n != 0, coefficients(amount))
-    length(non_zeros) == 0 && return on_grid
+    length(non_zeros) == 0 && return orbital
 
-    new_on_grid = translate(deepcopy(on_grid), -amount)
-    for k in grid(new_on_grid)
-        new_on_grid[k] = on_grid[k]
-    end
-    return new_on_grid
+    new_orbital = translate(orbital, -amount)
+    elements!(new_orbital, zeros(ComplexFxx, size(grid(orbital))))
+    circshift!(elements(new_orbital), elements(orbital), Tuple(coefficients(amount)))
+    return new_orbital
 end
 
 function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<: Number})
     standardize(translate(on_grid, grid(on_grid)[translation...]))
 end
 
-struct SimpleFunctionOnGrid{T} <: OnGrid{T}
+mutable struct SimpleFunctionOnGrid{T} <: OnGrid{T}
     grid::T
     elements::AbstractArray
     ket::Bool
@@ -178,12 +176,16 @@ function Base.map(f::Function, grid::T) where T <: Grid
     return result
 end
 
-function resemble(on_grid, ::Type{SimpleFunctionOnGrid{T}}) where T
+function resemble(on_grid::SimpleFunctionOnGrid{S}, ::Type{T}, new_elements=nothing) where {S <: Grid, T <:Grid}
     g = grid(on_grid)
-    SimpleFunctionOnGrid(g, zeros(T, size(g)), ket(g))
+    S == dual_grid(T) && (g = transform_grid(g))
+    if new_elements === nothing 
+       new_elements = zeros(eltype(elements(on_grid)), size(g))
+    end
+    SimpleFunctionOnGrid(g, new_elements, ket(on_grid))
 end
 
-function add(o_1::T, o_2::S) where {T <: OnGrid, S <: OnGrid}
+function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T <: Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
     ket(o_1) == ket(o_2) || error("Adding bra to ket.")
     o_3 = resemble(o_2, T)
@@ -191,7 +193,7 @@ function add(o_1::T, o_2::S) where {T <: OnGrid, S <: OnGrid}
     return o_3
 end
 
-function negate(o_1::T) where T <: OnGrid
+function negate(o_1::OnGrid{T}) where T <: Grid
     o_2 = resemble(o_1, T)
     elements!(o_2, -elements(o_1))
     return o_2
@@ -201,7 +203,7 @@ function minus(o_1::OnGrid, o_2::OnGrid)
     add(o_1, negate(o_2))
 end
 
-function mul(o_1::T, o_2::S) where {T <: OnGrid, S <: OnGrid}
+function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T <: Grid, S <: Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
     ket(o_1) == ket(o_2) || error("elementwise product cannot take a bra and a ket.")
     o_3 = resemble(o_2, S)
@@ -225,3 +227,43 @@ Base.:*(o_1::OnGrid, vector::AbstractVector) = mul(vector, o_1)
 
 Base.:*(o_1::OnGrid, o_2::OnGrid) = ket(o_1) == ket(o_2) ? mul(o_1, o_2) : braket(o_1, o_2)
 Base.adjoint(o_1::OnGrid) = dagger(o_1)
+
+
+"""
+Fast Fourier Transform of an orbital.
+
+This can be, and should be, parallelized with PencilFFT.jl
+"""
+function fft(orbital::OnGrid{T}) where T <:HomeCell
+    new_elements = FFTW.fft(elements(orbital))
+    return resemble(orbital, dual_grid(T), new_elements) |> wtp_normalize!
+end
+
+function ifft(orbital::OnGrid{T}) where T<:ReciprocalLattice
+    new_elements = FFTW.ifft(elements(orbital))
+    return resemble(orbital, dual_grid(T), new_elements) |> wtp_normalize!
+end
+
+# """
+
+# Standardize the representation of an OnGrid object.
+# The resulting object will be defined from -N+1 (N) to N.
+# Values outside the grid will be wrapped around.
+
+#                      2 ... N-1
+# -N+1 -N+2 ...  0  1  2 ... N-1 N
+
+# This operation does modify the underlying array.
+# This default implementation is slow.
+# """
+# function standardize(on_grid::OnGrid)
+#     amount = translation(on_grid)
+#     non_zeros = filter(n -> n != 0, coefficients(amount))
+#     length(non_zeros) == 0 && return on_grid
+
+#     new_on_grid = translate(deepcopy(on_grid), -amount)
+#     for p in grid(new_on_grid)
+#         new_on_grid[p] = on_grid[p]
+#     end
+#     return new_on_grid
+# end

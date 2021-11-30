@@ -1,36 +1,37 @@
 export Grid, domain, domain!, basis, dual_grid, 
 HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
 x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
-HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D
+HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array
 
 """
-Abstract Grid. 
+Non-orthogonal 3D periodic grid that comply to the centering convention.
 
-This abstract type provides indexing with Miller indices (slightly generalized)
-and iteration.
+It's made of a set of basis vectors and the domain in units of the basis
+vectors.  If you subtype this, the concrete type should have these two fields
+for things to work out of the box.
 
-Centering convention:
-
-    The convention for grid centered at the origin:
-        - For an even grid: the domain is -N, ..., 0, ..., N-1.
-        - For an odd grid: the domain is -N, ..., 0, ..., N.
-
-This convention matches the input files of QE for the Brillouin zone (but not
-its internals and outputs). This also matches the reciprocal lattice 
-and possibly the homecell in QE.
-
-If a grid does not comply to the centering convention, it is considered a
-translated grid.
+```julia
+basis::Tuple{Vector3, Vector3, Vector3}
+domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
+```
 """
-
 abstract type Grid end
 
 """
+    domain(grid)
+
 The domain of the grid are the extremal miller indices.
 The grid includes the end points of the domain.
 """
 domain(grid::Grid) = grid.domain
+
+"""
+    domain!(grid, new_grid)
+
+Set the domain of `grid` to `new_grid`.
+"""
 domain!(grid::Grid, new_domain) = grid.domain = new_domain
+
 x_min(grid::Grid) = domain(grid)[1][1]
 x_max(grid::Grid) = domain(grid)[1][2]
 y_min(grid::Grid) = domain(grid)[2][1]
@@ -38,9 +39,56 @@ y_max(grid::Grid) = domain(grid)[2][2]
 z_min(grid::Grid) = domain(grid)[3][1]
 z_max(grid::Grid) = domain(grid)[3][2]
 
+"""
+    mins(grid::Grid)
+
+The minimum indices of the grid along each direction.
+
+Example: 
+
+```julia
+homecell = HomeCell3D(CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
+mins(homecell) # gives [-2, -2, -2]
+```
+"""
 mins(grid::Grid) = [d[1] for d in domain(grid)]
+
+"""
+    maxes(grid)
+
+Similar to `mins(grid)`, but gives the maximum indices instead.
+"""
 maxes(grid::Grid) = [d[2] for d in domain(grid)]
+
+"""
+    array(grid)
+
+Convert the grid to a multidimensional array.
+
+
+Example:
+
+```julia
+homecell = HomeCell3D(CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
+array(homecell)[1, 1, 1]
+# grid: HomeCell3D
+# _coefficients: [-2, -2, -2]
+```
+"""
 array(grid::Grid) = grid[:,:,:]
+
+"""
+    n_dims(T)
+
+Gives the number of dimensions of the grid.
+
+Example:
+
+```julia
+n_dims(HomeCell3D) # 3
+```
+"""
+n_dims(::Type{<:Grid}) = 3
 
 """
     center(grid)
@@ -104,16 +152,17 @@ of the object.
 This provides a mapping between 1D indices (which are to be used for matrix algorithm) 
 and grid vectors.
 """
-Base.getindex(g::Grid, i::Integer) = grid_vector_constructor(g,
+(g::Grid)(i::Integer) = grid_vector_constructor(g,
     standard_to_miller(size(g), one_to_three(i, size(g)), [0,0,0]))
 
 """
 Indexing a grid with a list of linear indices gives a list of grid vector.
 """
-Base.getindex(g::Grid, linear_indices::Range) = [g[i] for i in linear_indices]
+(g::Grid)(linear_indices::Range) = [g(i) for i in linear_indices]
+(g::Grid)(::Colon) = [g(i) for i in 1:length(g)]
 
 """
-Iterate over the grid gives a sequence of grid vectros that goes through each grid point.
+Iterate over the grid gives a sequence of grid vectors that goes through each grid point.
 """
 function Base.iterate(grid::Grid)
 
@@ -181,25 +230,51 @@ This approach is to be contrasted with allocating a Fortran array and program
 functions as array manipulation.
 """
 
+"""
+The abstract homecell. It is reciprocal to the reciprocal lattice.
+"""
 abstract type HomeCell <: Grid end
+
+"""
+The home cell in 3D. The ``u_{nk}`` orbitals in the real space is represented as
+function on this grid. 
+"""
 struct HomeCell3D <: HomeCell
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 abstract type ReciprocalLattice <: Grid end 
+
+"""
+The 3D reciprocal lattice. The ``u_{nk}`` orbitals in the frequency space are
+represented as functions on this grid.
+
+This grid is the dual grid of `HomeCell3D`.
+Given a `homecell`, one can find its corresponding reciprocal lattice by
+
+```julia
+reciprocal_lattice = transform_grid(homecell)
+```
+"""
 struct ReciprocalLattice3D <: ReciprocalLattice
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 abstract type BrillouinZone <: Grid end
+"""
+The 3D Brillouin zone. The usage is the same of `HomeCell3D`.
+"""
 struct BrillouinZone3D <: BrillouinZone
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
 end
 
 abstract type RealLattice <: Grid end
+"""
+The 3D crystal lattice. This is the dual grid of `BrillouinZone3D`.
+"""
 struct RealLattice3D <: RealLattice
     basis::Tuple{Vector3, Vector3, Vector3}
     domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}

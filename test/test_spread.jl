@@ -39,7 +39,7 @@ end
 
 wannier = wannier_from_unk_dir(joinpath(e01_dir, "unk"),
                                joinpath(e01_dir, "si.save"))
-scheme = W90FiniteDifference(wannier, 1)
+scheme = W90FiniteDifference3D(wannier, 1)
 integrals = construct_integral_table(wannier, scheme)
 
 s, c = spread(wannier, 1, scheme)

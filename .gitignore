@@ -10,3 +10,4 @@ test/test_data/template
 *.cube
 notebooks/*
 .archive/*
+docs/build

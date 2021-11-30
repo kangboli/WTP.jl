@@ -18,7 +18,7 @@ U = Gauge(grid(wannier), amn, k_map)
 
 ## Construct the scheme.
 
-scheme = W90FiniteDifference(wannier)
+scheme = W90FiniteDifference3D(wannier)
 
 ## Apply the gauge transform on the basis integrals to get the neighbor integrals.
 

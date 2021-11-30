@@ -1,6 +1,7 @@
 
 export FiniteDifference,
     W90FiniteDifference,
+    W90FiniteDifference3D,
     finite_difference,
     find_shells,
     compute_weights,
@@ -20,7 +21,7 @@ abstract type FiniteDifference end
 Shells of neighbors of the gamma point within a finite different scheme.
 Each shell is a vector of kpoints.
 """
-shells(scheme::FiniteDifference)::AbstractVector{Vector{KPoint}} =
+shells(scheme::FiniteDifference)::AbstractVector{Vector{<:KPoint}} =
     scheme.neighbor_shells
 
 """
@@ -44,11 +45,13 @@ function find_neighbors(kpoint::KPoint, scheme::FiniteDifference)
     return (dk -> kpoint + dk).([dk_list; -dk_list])
 end
 
+abstract type W90FiniteDifference <: FiniteDifference end
+
 """
 The finite difference scheme used in Wannier90.
 """
-struct W90FiniteDifference <: FiniteDifference
-    neighbor_shells::AbstractVector{Vector{KPoint}}
+struct W90FiniteDifference3D <: W90FiniteDifference
+    neighbor_shells::AbstractVector{Vector{<:KPoint}}
     weights::AbstractVector{Number}
     neighbor_basis_integral::NeighborIntegral
 end
@@ -56,7 +59,7 @@ end
 """
 The Brillouin zone on which the finite difference scheme is defined.
 """
-grid(scheme::W90FiniteDifference) = grid(shells(scheme)[1][1])
+grid(scheme::FiniteDifference) = grid(shells(scheme)[1][1])
 
 function find_shells(grid::Grid, n_shell::Int)
     shells = SortedDict{Real,Vector{KPoint}}()
@@ -73,7 +76,7 @@ end
 """
 Solve Aw = q
 """
-function compute_weights(neighbor_shells::Vector{Vector{T}}) where T <: GridVector
+function compute_weights(neighbor_shells::Vector{Vector{T}}) where T <: AbstractGridVector
 
     indices = SortedDict(
         (1, 1) => 1,
@@ -97,13 +100,13 @@ function compute_weights(neighbor_shells::Vector{Vector{T}}) where T <: GridVect
     return isapprox(A * w, q, atol = 1e-13) ? w : nothing
 end
 
-function W90FiniteDifference(u::Wannier, n_shells = 1)
+function W90FiniteDifference3D(u::Wannier{UnkBasisOrbital{ReciprocalLattice3D}}, n_shells = 1)
     neighbor_shells = find_shells(grid(u), n_shells)
     weights = compute_weights(neighbor_shells)
-    weights === nothing && return W90FiniteDifference(u, n_shells + 1)
+    weights === nothing && return W90FiniteDifference3D(u, n_shells + 1)
     neighbor_integral = NeighborIntegral()
 
-    scheme = W90FiniteDifference(neighbor_shells, weights, neighbor_integral)
+    scheme = W90FiniteDifference3D(neighbor_shells, weights, neighbor_integral)
     populate_integral_table!(scheme, u)
     return scheme
 end
@@ -133,30 +136,29 @@ function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
 
-function populate_integral_table!(scheme::W90FiniteDifference, wannier::Wannier)
-    brillouin_zone = grid(wannier)
+function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
+    brillouin_zone = grid(u)
     M = neighbor_basis_integral(scheme)
 
     """
     Compute the mmn matrix between k1 and k2.
     """
-    function mmn_matrix(k1::KPoint, k2::KPoint)::Matrix{ComplexFxx}
-        return [braket(dagger(m), n) for m in wannier[k1], n in wannier[k2]]
+    function mmn_matrix(k_1::T, k_2::T) where T <: AbstractGridVector{<:BrillouinZone}
+        return [braket(dagger(m), n) for m in u[k_1], n in u[k_2]]
     end
-
-    # extended_brillouin_zone = union(Set{KPoint}([]), (k->find_neighbors(k, scheme)).(brillouin_zone)...)
 
     # Threads.@threads for kpoint in collect(brillouin_zone)
     @showprogress for kpoint in collect(brillouin_zone)
-        # println(i, ", kpoint: ", coefficients(kpoint), ", n neighbor: ", length(neighbors))
         for neighbor in find_neighbors(kpoint, scheme)
             M[neighbor, kpoint] !== nothing && continue
             M[kpoint, neighbor] = mmn_matrix(kpoint, neighbor)
         end
     end
     for kpoint in brillouin_zone
-        (m -> cache!(m, M)).(wannier[kpoint])
+        (m -> cache!(m, M)).(u[kpoint])
     end
     return M
 end
 
+
+# extended_brillouin_zone = union(Set{KPoint}([]), (k->find_neighbors(k, scheme)).(brillouin_zone)...)

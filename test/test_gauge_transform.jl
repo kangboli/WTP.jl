@@ -29,7 +29,7 @@ d = diag(neighbor_integral[g[0, 0, 0], g[0, 1, 0]])
 @test isapprox(imag(d[3]), 2.14367698922523602E-002, atol = 1e-6)
 
 
-scheme = W90FiniteDifference(wannier)
+scheme = W90FiniteDifference3D(wannier)
 
 n, N = 3, length(collect(grid(wannier)))
 center = zeros(ComplexFxx, 3)

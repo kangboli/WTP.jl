@@ -44,12 +44,12 @@ parse_line = (line, type) -> (n -> angry_parse(type, n)).(split(strip(line), r"\
 """
 This structure provides an interface to the UNK files.
 
-nx, ny, nz: Number of grid points in x, y, z direction.
-k: The kpoint at which the unk orbital is defined.
-n_band: The number of bands stored.
-psi_r: Each row of this matrix corresponds to a band. Each column corresponds
+- `nx, ny, nz`: Number of grid points in x, y, z direction.
+- `k`: The kpoint at which the unk orbital is defined.
+- `n_band`: The number of bands stored.
+- `psi_r`: Each row of this matrix corresponds to a band. Each column corresponds
     to a grid point (not sure which one yet).
-filename: The name of the file from which the UNK object is constructed.
+- `filename`: The name of the file from which the UNK object is constructed.
 """
 struct UNK
     nx::Int64
@@ -95,54 +95,34 @@ end
 """
 This structure provides an interface to the .wfc files.
 
-The format is documented in: https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-wfc-files 
+The format is documented in: [format of wfc files](https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-wfc-files).
 
-It is copied here for convenience:
+The relevant part is copied here for convenience:
 
-INTEGER :: ik
-!! k-point index (1 to number of k-points)
-REAL(8) :: xk(3)
-!! k-point coordinates
-INTEGER :: ispin
-!! spin index for LSDA case: ispin=1 for spin-up, ispin=2 for spin-down
-!! for unpolarized or non-colinear cases, ispin=1 always
-LOGICAL :: gamma_only
-!! if .true. write or read only half of the plane waves
-REAL(8) :: scalef
-!! scale factor applied to wavefunctions
-INTEGER :: ngw
-!! number of plane waves (PW)
-INTEGER :: igwx
-!! max number of PW (may be larger than ngw, not sure why)
-INTEGER :: npol
-!! number of spin states for PWs: 2 for non-colinear case, 1 otherwise
-INTEGER :: nbnd
-!! number of wavefunctions
-REAL(8) :: b1(3), b2(3), b3(3)
-!! primitive reciprocal lattice vectors
-INTEGER :: mill(3,igwx)
-!! miller indices: h=mill(1,i), k=mill(2,i), l=mill(3,i)
-!! the i-th PW has wave vector (k+G)(:)=xk(:)+h*b1(:)+k*b2(:)+ l*b3(:)
-COMPLEX(8) :: evc(npol*igwx,nbnd)
-!! wave functions in the PW basis set
-!! The first index runs on PW components,
-!! the second index runs on band states.
-!! For non-colinear case, each PW has a spin component
-!! first  igwx components have PW with   up spin,
-!! second igwx components have PW with down spin
+- `INTEGER :: ik`  k-point index (1 to number of k-points)
+- `REAL(8) :: xk(3)`  k-point coordinates
+- `INTEGER :: ispin`  spin index for LSDA case: ispin=1 for spin-up, ispin=2 for spin-down for unpolarized or non-colinear cases, ispin=1 always
+- `LOGICAL :: gamma_only`  if .true. write or read only half of the plane waves
+- `REAL(8) :: scalef`  scale factor applied to wavefunctions
+- `INTEGER :: ngw`  number of plane waves (PW)
+- `INTEGER :: igwx`  max number of PW (may be larger than ngw, not sure why)
+- `INTEGER :: npol`  number of spin states for PWs: 2 for non-colinear case, 1 otherwise
+- `INTEGER :: nbnd`  number of wavefunctions
+- `REAL(8) :: b1(3), b2(3), b3(3)`  primitive reciprocal lattice vectors
+- `INTEGER :: mill(3,igwx)`  miller indices: `h=mill(1,i), k=mill(2,i), l=mill(3,i)` the i-th PW has wave vector `(k+G)(:)=xk(:)+h*b1(:)+k*b2(:)+ l*b3(:)`
+- `COMPLEX(8) :: evc(npol*igwx,nbnd)`  wave functions in the PW basis set The first index runs on PW components, the second index runs on band states.  For non-colinear case, each PW has a spin component first  igwx components have PW with   up spin, second igwx components have PW with down spin
 
-Some renaming of variable names have been done to exorcise all malevolent acronyms.
+Some variables have been renamed in the package to exorcise the acronyms.
 
-ik -> i_kpoint
-xk -> k_coordinates
-ispin -> i_spin
-scalef -> scale_factor
-ngw -> n_planewaves
-igwx -> max_n_planewaves
-npol -> n_polerizations
-nbnd -> n_band
-
-b1, b2, b3 -> b_1, b_2, b_3
+- `ik` -> `i_kpoint`
+- `xk` -> `k_coordinates`
+- `ispin` -> `i_spin`
+- `scalef` -> `scale_factor`
+- `ngw` -> `n_planewaves`
+- `igwx` -> `max_n_planewaves`
+- `npol` -> `n_polerizations`
+- `nbnd` -> `n_band`
+- `b1, b2, b3` -> `b_1, b_2, b_3`
 """
 mutable struct WFC
     filename::String

@@ -58,4 +58,10 @@ function Base.show(io::IO, v::Vector3)
     @printf(io, "%.3f, %.3f, %.3f", v.vector...)
 end
 
+function Base.:(==)(v_1::Vector3, v_2::Vector3)
+    return isapprox(v_1.vector, v_2.vector, atol=1e-7) && ket(v_1) == ket(v_2)
+end
+
 const CARTESIAN_BASIS = (Vector3(1., 0., 0.), Vector3(0., 1., 0.), Vector3(0., 0., 1.))
+
+Base.:*(s::Number, v::Vector3) = Vector3(s*v.vector, ket(v))

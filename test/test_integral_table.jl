@@ -17,7 +17,7 @@
 
     @test isapprox(compute_weights(neighbor_shells)[1],  5.3360380375, atol=1e-6)
 
-    scheme = W90FiniteDifference(wannier)
+    scheme = W90FiniteDifference3D(wannier)
     integrals_from_wave_functions = neighbor_basis_integral(scheme)
 
     @test braket(dagger(wannier[gamma_point][1]), wannier[g[0, 0, 1]][1]) ==

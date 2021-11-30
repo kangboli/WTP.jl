@@ -21,7 +21,7 @@ Such a function is also a basis vector and a linear combination.
 This is where the single subtyping system of Julia gives me migraine.
 """
 abstract type AbstractUnkOrbital{T} <: OnGrid{T} end
-const KPoint = GridVector{BrillouinZone3D}
+const KPoint = AbstractGridVector{<:BrillouinZone}
 
 Base.adjoint(orbital::AbstractUnkOrbital) = dagger(orbital)
 i_kpoint(orbital::AbstractUnkOrbital) = haskey(orbital.meta, :i_kpoint) ? orbital.meta[:i_kpoint] : nothing
@@ -36,7 +36,7 @@ function kpoint!(orbital, new_kpoint::KPoint)
 end
 index_band(orbital) = orbital.index_band
 
-function braket(o_1::AbstractUnkOrbital, o_2::AbstractUnkOrbital)
+function braket(o_1::OnGrid, o_2::OnGrid)
     !ket(o_1) && ket(o_2) || error("braket requires a bra and a ket.")
     # cache lookup.
     # This cache turned out to be very slow.
@@ -88,58 +88,48 @@ function dagger!(orbital::UnkBasisOrbital)
     orbital.ket = !orbital.ket
 end
 
-function resemble(orbital, ::Type{UnkBasisOrbital{T}}) where T
+function resemble(orbital::UnkBasisOrbital{S}, ::Type{T}, new_elements=nothing) where {S <: Grid,  T <: Grid}
     g = grid(orbital)
-    elements = zeros(ComplexFxx, size(g))
-    UnkBasisOrbital( g, elements, kpoint(orbital), index_band(orbital)) 
+    S == dual_grid(T) && (g = transform_grid(g))
+    if new_elements === nothing 
+       new_elements = zeros(eltype(elements(on_grid)), size(g))
+    end
+    UnkBasisOrbital(g, new_elements, kpoint(orbital), index_band(orbital)) 
 end
 
-"""
-This implementation is faster with circshift.
-"""
-function standardize(orbital::UnkBasisOrbital)
-    amount = translation(orbital)
-    non_zeros = filter(n -> n != 0, coefficients(amount))
-    length(non_zeros) == 0 && return orbital
 
-    new_orbital = translate(orbital, -amount)
-    elements!(new_orbital, zeros(ComplexFxx, size(grid(orbital))))
-    circshift!(elements(new_orbital), elements(orbital), Tuple(coefficients(amount)))
-    return new_orbital
-end
+# """
+# Fast Fourier Transform of an orbital.
 
-"""
-Fast Fourier Transform of an orbital.
+# This can be, and should be, parallelized with PencilFFT.jl
+# """
+# function fft(orbital::UnkBasisOrbital{T}) where T <:HomeCell
+#     new_elements = FFTW.fft(elements(orbital))
+#     new_grid = transform_grid(grid(orbital))
 
-This can be, and should be, parallelized with PencilFFT.jl
-"""
-function fft(orbital::UnkBasisOrbital{T}) where T <:HomeCell
-    new_elements = FFTW.fft(elements(orbital))
-    new_grid = transform_grid(grid(orbital))
+#     return UnkBasisOrbital{dual_grid(T)}(
+#         new_grid,
+#         new_elements,
+#         kpoint(orbital),
+#         index_band(orbital),
+#         ket(orbital),
+#         Dict(),
+#     ) |> wtp_normalize!
+# end
 
-    return UnkBasisOrbital{dual_grid(T)}(
-        new_grid,
-        new_elements,
-        kpoint(orbital),
-        index_band(orbital),
-        ket(orbital),
-        Dict(),
-    ) |> wtp_normalize!
-end
+# function ifft(orbital::UnkBasisOrbital{T}) where T<:ReciprocalLattice
+#     new_elements = FFTW.ifft(elements(orbital))
+#     new_grid = transform_grid(grid(orbital))
 
-function ifft(orbital::UnkBasisOrbital{T}) where T<:ReciprocalLattice
-    new_elements = FFTW.ifft(elements(orbital))
-    new_grid = transform_grid(grid(orbital))
-
-    return UnkBasisOrbital{dual_grid(T)}(
-        new_grid,
-        new_elements,
-        kpoint(orbital),
-        index_band(orbital),
-        ket(orbital),
-        Dict(),
-    ) |> wtp_normalize!
-end
+#     return UnkBasisOrbital{dual_grid(T)}(
+#         new_grid,
+#         new_elements,
+#         kpoint(orbital),
+#         index_band(orbital),
+#         ket(orbital),
+#         Dict(),
+#     ) |> wtp_normalize!
+# end
 
 
 function Base.show(io::IO, orbital::UnkBasisOrbital)
@@ -210,7 +200,7 @@ function LinearAlgebra.zeros(UnkOrbital, dims...)
     fill(UnkOrbital([], [], true, true), dims...)
 end
 
-function LinearAlgebra.zero(::Type{UnkOrbital})
+function LinearAlgebra.zero(::UnkOrbital)
     UnkOrbital([], [], true, true)
 end
 
@@ -244,8 +234,8 @@ function Base.show(io::IO, orbital::UnkOrbital)
     ket(orbital) ? print(io, "ket\n") : print(io, "bra\n")
     print(io, "coefficients:\n$(indent(repr(coefficients(orbital))))" * "\n")
     print(io, "n_basis:\n$(indent(string(length(basis(orbital)))))" * "\n")
-    print(io, "kpoint:\n$(indent(repr(kpoint(orbital))))\n")
-    print(io, "band:\n$(indent(repr(index_band(orbital))))")
+    # print(io, "kpoint:\n$(indent(repr(kpoint(orbital))))\n")
+    # print(io, "band:\n$(indent(repr(index_band(orbital))))")
 end
 
 function compare(o_1, o_2)
