@@ -20,6 +20,8 @@ end
 
 Gauge(grid::T) where T <: BrillouinZone = 
     Gauge(grid, Array{Matrix{ComplexFxx}, n_dims(T)}(undef, size(grid)))
+Gauge(grid::T, n::Integer) where T <: BrillouinZone = 
+    Gauge(grid, fill(diagm(ones(ComplexFxx, n)), size(grid)))
 
 Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid, KPoint}, g, reset_overflow(k))
 Base.setindex!(g::Gauge, value, k::KPoint) = invoke(setindex!, Tuple{OnGrid, Any, KPoint}, g, value, reset_overflow(k))
@@ -56,7 +58,7 @@ end
 
 function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     g = grid(wannier)
-    elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},3}(undef, size(g))
+    elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},n_dims(T)}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
     for k in g
         transformed[k] = ifft.(wannier[k])

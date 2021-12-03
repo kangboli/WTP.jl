@@ -163,6 +163,10 @@ function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<: Number})
     standardize(translate(on_grid, grid(on_grid)[translation...]))
 end
 
+function Base.:(>>)(on_grid::OnGrid{S}, grid_vector::AbstractGridVector{S}) where S
+    on_grid >> coefficients(grid_vector)
+end
+
 mutable struct SimpleFunctionOnGrid{T} <: OnGrid{T}
     grid::T
     elements::AbstractArray
@@ -211,7 +215,7 @@ function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T <: Grid, S <: Grid}
     return o_3
 end
 
-function mul(scalar::Number, o_1::OnGrid)
+function mul(scalar::Number, o_1::OnGrid{T}) where T
     o_2 = resemble(o_1, T)
     elements!(o_2, scalar * elements(o_1))
     return o_2

@@ -8,7 +8,7 @@ Convert a set of three sizes into a domain.
 sizes must be an iterable of numbers.
 """
 function size_to_domain(sizes) 
-    domain(s::Int) = iseven(s) ? (-s ÷ 2, s ÷ 2 - 1) : (-s ÷ 2, s ÷ 2)
+    domain(s::Integer) = iseven(s) ? (-s ÷ 2, s ÷ 2 - 1) : (-s ÷ 2, s ÷ 2)
 
     return Tuple(domain(n) for n in Int.(sizes))
 end
@@ -63,8 +63,8 @@ Convert a set of miller indices to standard indices.
 """
 miller_to_standard(
     sizes,
-    indices::AbstractVector{Int64},
-    offsets::AbstractVector{Int64},
+    indices::AbstractVector{<:Integer},
+    offsets::AbstractVector{<:Integer},
 ) = collect(
     Iterators.map(
         (m, o, s) -> m + o >= 0 ? m + o + 1 : m + o + s + 1,
@@ -81,8 +81,8 @@ Convert a set of standard indices to miller indices.
 """
 standard_to_miller(
     sizes,
-    indices::AbstractVector{Int64},
-    offsets::AbstractVector{Int64},
+    indices::AbstractVector{<:Integer},
+    offsets::AbstractVector{<:Integer},
 ) = collect(
     Iterators.map(
         (m, o, s) -> m <= s ÷ 2 ? m - 1 - o : m - 1 - s - o,

@@ -2,6 +2,7 @@ A grid vector is a point on our grid. It is primarily used to index functions de
 
 ```@setup grid_vector
 using WTP
+using Gadfly
 ```
 
 ## Creating a Grid Vector
@@ -34,7 +35,7 @@ The primary usage of the grid vector is to index functions defined on our `Grid`
 Consider some planewave defined on the reciprocal lattice (a $\delta$ function)
 
 ```@example grid_vector
-ψ = map(g->(g==lattice[1,0,0]) |> Float64, lattice)
+ψ = map(g->(g==lattice[0,0,0]) |> Float64, lattice)
 ψ[lattice[1, 0, 0]], ψ[lattice[0, 1, 0]]
 ```
 
@@ -48,8 +49,11 @@ counterparts.
 
 Indexing with ranges is also supported
 ```@example grid_vector
-ψ[lattice[-1:1, 0, 0]]
+spy(ψ[lattice[:, :, 0]])
+ans |> SVG("planewave.svg", 4inch, 4inch); nothing # hide
 ```
+
+![](planewave.svg)
 
 It is often time desirable to treat a function as a raw 1D array so that matrix
 methods apply. This is not hard. `elements(ψ)` can be treated as a 1D array.

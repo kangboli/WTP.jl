@@ -10,6 +10,7 @@ pages = [
     "Wannier" => "wannier.md",
     "Γ-point" => "gamma_point.md",
     "Examples" => "examples.md",
+    "API References" => "api_references.md",
 ]
 )
 

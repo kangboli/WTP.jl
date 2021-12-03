@@ -12,6 +12,7 @@ The goals is to provide a uniform interface for dealing with
 
 ```@setup grid
 using WTP
+using Gadfly
 ```
 ## Centering Convention
 
@@ -43,11 +44,11 @@ a_3 = \begin{pmatrix}
 0\\ 0 \\ 1/2
 \end{pmatrix}$$
 
-and domain $(-2, 1)$ in each direction in terms of the basis vectors.
+and domain $(-10, 9)$ in each direction in terms of the basis vectors.
 
 ```@example grid
 homecell_basis = (Vector3(0, sqrt(3)/2, 0), Vector3(1, 1/2, sqrt(3)/2), Vector3(0, 0, 1/2))
-homecell = HomeCell3D(homecell_basis, ((-2, 1), (-2, 1), (-2, 1)))
+homecell = HomeCell3D(homecell_basis, ((-10, 9), (-10, 9), (-10, 9)))
 ```
 
 We provide four different grids by default
@@ -70,7 +71,7 @@ origin = homecell[0, 0, 0]
 
 Ranges are supported, and the result will be a multi-dimensional array.
 ```@example grid
-homecell[:, 0, -1:0]
+homecell[-1:0, 0, -1:0]
 ```
 
 The grid can also be indexed with a single number using parenthesis.  This more
@@ -89,7 +90,7 @@ homecell[indices_3d...]
 !!! warning "Do not pass around an integer as 3D indices"
     
     One should not pass an integer as a 3D index, amongst many other things
-    people abuse integers for.  An integer does have the grid as its context, so
+    people abuse integers for.  An integer does not have the grid as its context, so
     one should pass a `AbstractGridVector` instead most of the time.
 
 ## Iterations and Maps over Grids
@@ -104,27 +105,43 @@ end
 ```
 
 We can also map over a grid, the result will be a `SimpleFunctionOnGrid`.
-For example, we can generate a planewave on the home cell 
+For example, we can generate a Gaussian on the home cell, and visualize a slice of it.
 
 ```@example grid
-reciprocal_lattice = transform_grid(homecell)
-k = reciprocal_lattice[1, 0, 0]
-planewave = map(r->exp(-1im * k' * r), homecell)
-planewave[origin]
+gaussian = map(r->exp(-r'*r), homecell)
+spy(gaussian[homecell[0, :, :]])
+ans |> SVG("gaussian.svg", 4inch, 4inch); nothing # hide
 ```
+
+![](gaussian.svg)
+
+The result does not look isotropic even though our Gaussian is. This is because the grid is not orthogonal. Keep this in mind for all the pictures.
 
 ## Transform a Grid
 
-If we apply a Fourier transform on a function defined on a grid, the result 
-is a function defined on a different grid, which we refer to as the dual grid.
-
-`HomeCell3D` and `ReciprocalLattice3D` are dual grids and
-`BrillouinZone3D` and `RealLattice3D` are dual grids.
+If we apply a Fourier transform on a function (see the section on orbitals)
+defined on a grid, the result is a function defined on a different grid, which
+we refer to as the dual grid.
 
 ```@example grid
+guassian_reciprocal = fft(gaussian)
+reciprocal_lattice = grid(guassian_reciprocal)
+spy(abs.(guassian_reciprocal[reciprocal_lattice[0, :, :]]))
+ans |> SVG("gaussian_reciprocal.svg", 4inch, 4inch); nothing # hide
+```
+![](gaussian_reciprocal.svg)
+
+```@example grid
+grid(guassian_reciprocal)
+```
+
+One can also explicitly transform only the grid.
+```julia
 reciprocal_lattice = transform_grid(homecell)
 ```
 
+`HomeCell3D` and `ReciprocalLattice3D` are dual grids and
+`BrillouinZone3D` and `RealLattice3D` are dual grids.
 ## Some other Methods
 
 ```@docs

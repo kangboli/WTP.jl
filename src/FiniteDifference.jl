@@ -11,7 +11,8 @@ export FiniteDifference,
     populate_integral_table!,
     center,
     neighbor_basis_integral,
-    second_moment
+    second_moment,
+    BranchStable
 
 abstract type FiniteDifference end
 
@@ -42,6 +43,7 @@ Find the set of relevant neighbors for a kpoint under a scheme.
 """
 function find_neighbors(kpoint::KPoint, scheme::FiniteDifference)
     dk_list = vcat(shells(scheme)...)
+    # TODO: The negative part may not be necessary.
     return (dk -> kpoint + dk).([dk_list; -dk_list])
 end
 
@@ -111,11 +113,13 @@ function W90FiniteDifference3D(u::Wannier{UnkBasisOrbital{ReciprocalLattice3D}},
     return scheme
 end
 
+abstract type BranchStable end
+
 function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     function kpoint_contribution(k::KPoint)
         -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
             sum(shell) do b
-                w * cartesian(b) * imag(log(M[k, k+b][n, n]))
+                w * cartesian(b) * angle(M[k, k+b][n, n])
             end
         end
     end
@@ -123,6 +127,24 @@ function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     brillouin_zone = collect(grid(scheme))
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
+
+function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchStable})
+    function kpoint_contribution(k::KPoint)
+        -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+            sum(unique(k->Set([k, -k]), shell)) do b
+                ϕ⁺ = M[k, k+b][n, n] |> angle
+                ϕ⁻ = M[k, k-b][n, n] |> angle
+                branch = (sign(ϕ⁺) == sign(ϕ⁻) ? -1 : 1)
+                w * cartesian(b) * ϕ⁺ + w * cartesian(-b) * branch * ϕ⁻
+            end
+        end
+    end
+
+    brillouin_zone = scheme |> grid |> collect
+    return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
+    
+end
+
 
 function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     function kpoint_contribution(k::KPoint)

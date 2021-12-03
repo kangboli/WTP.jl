@@ -1,7 +1,7 @@
 export Grid, domain, domain!, basis, dual_grid, 
 HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
 x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
-HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array
+HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid
 
 """
 Non-orthogonal 3D periodic grid that comply to the centering convention.
@@ -30,7 +30,7 @@ domain(grid::Grid) = grid.domain
 
 Set the domain of `grid` to `new_grid`.
 """
-domain!(grid::Grid, new_domain) = grid.domain = new_domain
+domain!(grid::Grid, new_domain) = @set grid.domain = new_domain
 
 x_min(grid::Grid) = domain(grid)[1][1]
 x_max(grid::Grid) = domain(grid)[1][2]
@@ -115,6 +115,11 @@ The type of the dual grid of T.
 """
 dual_grid(::Type{T}) where T = T
 
+"""
+    size(g)
+
+The size of the grid. The result is a tuple of integers.
+"""
 Base.size(g::Grid) = Tuple(d[2]-d[1]+1 for d in domain(g)) 
 Base.length(g::Grid) = prod(size(g))
 
@@ -180,18 +185,28 @@ function Base.iterate(grid::Grid, state)
 end
 
 """
+    transform_grid(g)
+
 FFT of the grid.
 
 The resulting basis vectors should satisfy
-aᵢ bᵢ = 2π / sᵢ,
-where s is the size of the grid.
+aᵢᵀ bᵢ = 2π / sᵢ,
+where s is the size of the grid (number of grid points in each direction).
 """
 transform_grid(grid::T) where T <: Grid = 
     let A = vector3_to_matrix(basis(grid)) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
         dual_grid(T)(matrix_to_vector3(B), size_to_domain(size(grid)))
     end
 
+invert_grid(grid::T) where T <: Grid = 
+    inverse_grid(T)(
+        Tuple(2b / s for (b, s) in zip(basis(grid), size(grid))), 
+        domain(grid)
+    )
+
 """
+    snap(grid, point)
+
 Snap a coordinate to a grid point.  
 """
 snap(grid::Grid, point::AbstractVector) =
@@ -281,6 +296,11 @@ struct RealLattice3D <: RealLattice
 end
 
 dual_grid(::Type{HomeCell3D}) = ReciprocalLattice3D
-dual_grid(::Type{ReciprocalLattice3D}) =  HomeCell3D
+dual_grid(::Type{ReciprocalLattice3D}) = HomeCell3D
 dual_grid(::Type{BrillouinZone3D}) = RealLattice3D
 dual_grid(::Type{RealLattice3D}) = BrillouinZone3D
+
+inverse_grid(::Type{HomeCell3D}) = RealLattice3D
+inverse_grid(::Type{RealLattice3D}) = HomeCell3D
+inverse_grid(::Type{BrillouinZone3D}) = ReciprocalLattice3D
+inverse_grid(::Type{ReciprocalLattice3D}) = BrillouinZone3D

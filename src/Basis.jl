@@ -65,3 +65,5 @@ end
 const CARTESIAN_BASIS = (Vector3(1., 0., 0.), Vector3(0., 1., 0.), Vector3(0., 0., 1.))
 
 Base.:*(s::Number, v::Vector3) = Vector3(s*v.vector, ket(v))
+Base.:*(v::Vector3, s::Number) = Vector3(s*v.vector, ket(v))
+Base.:/(v::Vector3, s::Number) = Vector3(v.vector/s, ket(v))

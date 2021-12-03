@@ -3,6 +3,7 @@ points are often times either real space points or wave numbers, but more genera
 
 ```@setup orbital
 using WTP
+using Gadfly
 ```
 
 ## Creating an Orbital
@@ -14,7 +15,7 @@ Suppose that we have a reciprocal grid
 ```@example orbital
 g₁, g₂, g₃ = CARTESIAN_BASIS
 reciprocal_basis = (g₁, 2g₂, 3g₃)
-sizes = (4, 4, 4)
+sizes = (10, 10, 10)
 lattice = ReciprocalLattice3D(reciprocal_basis, size_to_domain(sizes))
 ```
 
@@ -30,16 +31,23 @@ We could also do this in the home cell.
 ```@example orbital
 homecell = transform_grid(lattice)
 ϕ = map(r->exp(1im * gₓ' * r), homecell) |> wtp_normalize!
-(x->round(x, digits=3)).(ϕ[homecell[-2:1,0,0]])
+spy(real.(ϕ[homecell[:,:,0]]))
+ans |> SVG("planewave_real.svg", 4inch, 4inch); nothing # hide
 ```
+
+![](planewave_real.svg)
 
 ## Fast Fourier Transform
 
 The package is designed to make this as easy as it can get. To perform a forward FFT, 
 ```@example orbital
 ϕ̂ = fft(ϕ)
-ϕ̂[gₓ]
+spy(real.(ϕ̂[lattice[:,:,0]]))
+ans |> SVG("planewave_freq.svg", 4inch, 4inch); nothing # hide
 ```
+
+![](planewave_freq.svg)
+
 The type of the orbital and the underlying grid are also transformed accordingly.
 ```@example orbital
 typeof(ϕ), typeof(ϕ̂)
@@ -48,8 +56,10 @@ typeof(ϕ), typeof(ϕ̂)
 The inverse FFT is,
 ```@example orbital
 ψ̂ = ifft(ψ)
-ψ̂[homecell[-2:1, 0, 0]]
+spy(real.(ψ̂[homecell[:,:,0]]))
+ans |> SVG("planewave_real_again.svg", 4inch, 4inch); nothing # hide
 ```
+![](planewave_real_again.svg)
 
 ## Indexing an Orbital
 
