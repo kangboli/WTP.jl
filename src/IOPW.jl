@@ -359,12 +359,8 @@ function estimate_sizes(
         return 2 * domain_scaling_factor * (max(abs.(wave_functions.miller[i, :])...))
     domain_scaling_factor == 1 ||
         error("Only a domain scaling factor of 1 and 2 are currently supported")
-    function one_dim_size(i::Int)
-        half_domain = max(abs.(wave_functions.miller[i, :])...)
-        return 2 * (half_domain + phase_shift_slack)
-    end
-
-    return one_dim_size.(1:3)
+    half_domain = max(abs.(wave_functions.miller[i, :])...)
+    return 2 * (half_domain + phase_shift_slack)
 end
 
 """
@@ -443,7 +439,7 @@ function wannier_from_save(
         maximum((w) -> estimate_sizes(w, i, domain_scaling_factor), wave_functions_list) for i = 1:3
     )
 
-    @showprogress for w in wave_functions_list
+    for w in wave_functions_list
         k = k_map[w.i_kpoint]
         gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, w.n_band, w.n_band)
 
@@ -453,6 +449,7 @@ function wannier_from_save(
             size_to_domain(sizes),
         )
         wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k)
+        # w.evc = nothing
     end
     return wannier
 end
@@ -566,7 +563,6 @@ function AMN(amn_filename::String)
     amn = AMN(n_band, n_kpoint, n_wannier, Dict())
     lines = readlines(file)
     r_1 = n_band^2
-    # Threads.@threads 
     for l_1 = 1:n_kpoint
         for l_2 = 1:r_1
             line_number = (l_1 - 1) * r_1 + l_2

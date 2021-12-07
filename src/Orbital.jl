@@ -12,7 +12,8 @@ export kpoint,
     UnkBasisOrbital,
     UnkOrbital,
     orthonormal,
-    ifft
+    ifft,
+    vectorize
 
 """
 An UnkOrbital represents a u_{nk}(x) function. 
@@ -88,11 +89,16 @@ function dagger!(orbital::UnkBasisOrbital)
     orbital.ket = !orbital.ket
 end
 
+function vectorize(o::UnkBasisOrbital)
+    # wfc(o)!==nothing ? wfc(o).evc[:, index_band(o)] : 
+    reshape(elements(o), prod(size(grid(o))))
+end
+
 function resemble(orbital::UnkBasisOrbital{S}, ::Type{T}, new_elements=nothing) where {S <: Grid,  T <: Grid}
     g = grid(orbital)
     S == dual_grid(T) && (g = transform_grid(g))
     if new_elements === nothing 
-       new_elements = zeros(eltype(elements(on_grid)), size(g))
+       new_elements = zeros(eltype(elements(orbital)), size(g))
     end
     UnkBasisOrbital(g, new_elements, kpoint(orbital), index_band(orbital)) 
 end

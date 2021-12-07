@@ -21,5 +21,6 @@ include("Wannier.jl")
 include("FiniteDifference.jl")
 include("IOPW.jl")
 include("FileExport.jl")
+include("Operator.jl")
 
 end

@@ -10,9 +10,11 @@ export FiniteDifference,
     weights,
     populate_integral_table!,
     center,
-    neighbor_basis_integral,
     second_moment,
-    BranchStable
+    spread,
+    neighbor_basis_integral,
+    BranchStable,
+    BranchNaive
 
 abstract type FiniteDifference end
 
@@ -114,8 +116,11 @@ function W90FiniteDifference3D(u::Wannier{UnkBasisOrbital{ReciprocalLattice3D}},
 end
 
 abstract type BranchStable end
+abstract type BranchNaive end
 
-function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
+center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int) = center(M, scheme, n, BranchStable)
+
+function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchNaive})
     function kpoint_contribution(k::KPoint)
         -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
             sum(shell) do b
@@ -158,6 +163,11 @@ function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
 
+spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int) = second_moment(M, scheme, n) - 
+    norm(center(M, scheme, n))^2
+    
+
+
 function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     brillouin_zone = grid(u)
     M = neighbor_basis_integral(scheme)
@@ -166,21 +176,28 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     Compute the mmn matrix between k1 and k2.
     """
     function mmn_matrix(k_1::T, k_2::T) where T <: AbstractGridVector{<:BrillouinZone}
-        return [braket(dagger(m), n) for m in u[k_1], n in u[k_2]]
+
+        U = hcat(map(vectorize, u[k_1])...)
+        V = hcat(map(vectorize, u[k_2])...)
+        return U' * V
     end
 
-    # Threads.@threads for kpoint in collect(brillouin_zone)
-    @showprogress for kpoint in collect(brillouin_zone)
-        for neighbor in find_neighbors(kpoint, scheme)
-            M[neighbor, kpoint] !== nothing && continue
-            M[kpoint, neighbor] = mmn_matrix(kpoint, neighbor)
+    for k in collect(brillouin_zone)
+    # for k in collect(brillouin_zone)
+        for neighbor in find_neighbors(k, scheme)
+            M[neighbor, k] !== nothing && continue
+            # M[k, neighbor] = adjoint(U[k]) * mmn_matrix(k, neighbor) * U[neighbor]
+            M[k, neighbor] = mmn_matrix(k, neighbor)
         end
     end
-    for kpoint in brillouin_zone
-        (m -> cache!(m, M)).(u[kpoint])
+    for k in brillouin_zone
+        (m -> cache!(m, M)).(u[k])
     end
     return M
 end
 
 
 # extended_brillouin_zone = union(Set{KPoint}([]), (k->find_neighbors(k, scheme)).(brillouin_zone)...)
+# U = hcat((o->reshape(elements(o), prod(size(grid(o))))).(u[k_1])...)
+# V = hcat((o->reshape(elements(o), prod(size(grid(o))))).(u[k_2])...)
+# return [braket(dagger(m), n) for m in u[k_1], n in u[k_2]]

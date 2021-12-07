@@ -58,6 +58,10 @@ function Base.show(io::IO, v::Vector3)
     @printf(io, "%.3f, %.3f, %.3f", v.vector...)
 end
 
+function html(v::Vector3)
+    (ket(v) ? "ket: " : "bra: ") * @sprintf("%.3f, %.3f, %.3f", v.vector...)
+end
+
 function Base.:(==)(v_1::Vector3, v_2::Vector3)
     return isapprox(v_1.vector, v_2.vector, atol=1e-7) && ket(v_1) == ket(v_2)
 end

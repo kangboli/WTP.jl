@@ -230,10 +230,23 @@ function Base.string(grid::Grid)::String
     return join([type_str, domain_str, grid_basis_str], "\n")
 end
 
-function Base.show(io::IO, grid::Grid)
+function html(grid::Grid)
+    domain_html = "<ul>" * join(["<li>from $(d[1]) to $(d[2])</li>" for d in domain(grid)], "\n") * "</ul>"
+    basis_html = "<ul>" * join(["<li>$(html(b))</li>" for b in basis(grid)], "\n") * "</ul>"
+    return "<ul>
+    <li>Type: $(typeof(grid))</li>
+    <li>Domain: $(domain_html)</li>
+    <li>Basis: $(basis_html)</li>
+    </ul>"
+end
+
+function Base.show(io::IO, ::MIME"text/plain", grid::Grid)
     println(io, string(grid))
 end
 
+function Base.show(io::IO, ::MIME"text/html", grid::Grid)
+    println(io, html(grid))
+end
 
 """
 There are four basic grids (two pairs of dual grids) in Condensed Phase on which

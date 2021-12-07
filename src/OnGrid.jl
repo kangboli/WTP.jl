@@ -10,7 +10,9 @@ export OnGrid,
     elements!,
     standardize,
     wtp_normalize,
-    wtp_normalize!
+    wtp_normalize!,
+    wtp_sparse,
+    wtp_sparse!
 
 """
 A function defined on a grid. 
@@ -137,6 +139,13 @@ function wtp_normalize!(on_grid::OnGrid)
     return on_grid
 end
 
+function wtp_sparse(on_grid::OnGrid)
+    @set on_grid.elements = reshape(sparsevec(elements(on_grid)), size(elements(on_grid))... )
+end
+function wtp_sparse!(on_grid::OnGrid)
+    elements!(on_grid, reshape(sparsevec(elements(on_grid)), size(elements(on_grid))... ))
+end
+
 """
 Standardize the representation of an OnGrid object.
 The resulting object will be defined from -N+1 (N) to N.
@@ -191,7 +200,7 @@ end
 
 function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T <: Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
-    ket(o_1) == ket(o_2) || error("Adding bra to ket.")
+    # ket(o_1) == ket(o_2) || error("Adding bra to ket.")
     o_3 = resemble(o_2, T)
     elements!(o_3, elements(o_1) + elements(o_2))
     return o_3
@@ -247,6 +256,16 @@ function ifft(orbital::OnGrid{T}) where T<:ReciprocalLattice
     new_elements = FFTW.ifft(elements(orbital))
     return resemble(orbital, dual_grid(T), new_elements) |> wtp_normalize!
 end
+
+function html(on_grid::OnGrid)
+    return "<ul>
+    <li>Type: $(typeof(on_grid))</li>
+    <li>Grid: $(html(grid(on_grid)))</li>
+    </ul>
+    "
+end
+
+Base.show(io::IO, ::MIME"text/html", on_grid::OnGrid) = println(io, html(on_grid))
 
 # """
 
