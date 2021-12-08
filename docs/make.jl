@@ -11,6 +11,7 @@ pages = [
     "Γ-point" => "gamma_point.md",
     "Examples" => "examples.md",
     "API References" => "api_references.md",
+    "Internals" => "internals.md"
 ]
 )
 

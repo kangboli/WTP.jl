@@ -20,8 +20,14 @@ end
 
 Gauge(grid::T) where T <: BrillouinZone = 
     Gauge(grid, Array{Matrix{ComplexFxx}, n_dims(T)}(undef, size(grid)))
-Gauge(grid::T, n::Integer) where T <: BrillouinZone = 
-    Gauge(grid, fill(diagm(ones(ComplexFxx, n)), size(grid)))
+
+function Gauge(grid::T, n::Integer) where T <: BrillouinZone 
+    U = Gauge(grid)
+    for v in grid
+        U[v] = diagm(ones(ComplexFxx, n))
+    end
+    return U
+end
 
 Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid, KPoint}, g, reset_overflow(k))
 Base.setindex!(g::Gauge, value, k::KPoint) = invoke(setindex!, Tuple{OnGrid, Any, KPoint}, g, value, reset_overflow(k))
