@@ -74,8 +74,8 @@ to avoid transposing in memory for SCDM.
 This takes 10s to load a 1.4G unk file using 12 threads and an NVMe drive.
 """
 function UNK(unk_filename::String)
-    # Read the header information.
     file = open(unk_filename)
+    # TODO: provide an option for using string splitting (slower).
     parse_complex(number) =
         parse(Float32, number[1:20]) + parse(Float32, number[21:40]) * 1im
     n_x, n_y, n_z, k, n_band = parse_line(readline(file), Int64)
@@ -198,7 +198,7 @@ end
 Construct a mapping between the mystical i_kpoints and kpoints
 from a list of WFC objects.
 
-This mapping maybe different from what is used for .mmn and .amn files.
+This mapping may be different from what is used for .mmn and .amn files.
 """
 function i_kpoint_map(wave_functions_list::AbstractVector{WFC})
     k_map = Dict{Int64,KPoint}()
@@ -237,10 +237,8 @@ function single_orbital_from_wave_functions(
     i_kpoint!(orbital, wave_function.i_kpoint)
 
     Threads.@threads for i = 1:wave_function.max_n_planewaves
-        g = grid_vector_constructor(
-            reciprocal_lattice,
-            wave_function.miller[:, i] + overflow(k),
-        )
+        coefficients = wave_function.miller[:, i] + overflow(k)
+        g = grid_vector_constructor(reciprocal_lattice, coefficients)
         orbital[g] = wave_function.evc[i, n]
     end
 
@@ -255,9 +253,7 @@ function single_orbital_from_wave_functions(
     end
 
     wave_function.gamma_only && complete_negative_half_for_gamma_trick()
-
-    # Omit normalization for testing
-    return orbital # |> wtp_normalize! 
+    return orbital
 end
 
 """
@@ -484,6 +480,24 @@ function wannier_from_unk_dir(
     return wannier
 end
 
+"""
+This structure provides an interface to the `MMN` files.
+
+- The first line should tell a joke. The parser won't parse unless tickled.
+
+The format of the `MMN` files can be found in the user guide of `wannier90.x`.
+
+Γ-point:
+
+`wannier90.x` uses MMN files also for the X, Y, Z matrices of gamma point
+calculations.  This is nowhere documented.
+
+The ``g``-vectors (taken from wannier90 user guide):
+
+The last three integers specify the ``G`` vector, in reciprocal lattice units,
+that brings the k-point specified by the second integer, and that thus lives inside
+the first Brillouin zone, to the actual ``k + b`` we need.
+"""
 struct MMN
     n_band::Int64
     n_kpoint::Int64
@@ -493,22 +507,13 @@ struct MMN
 end
 
 """
-wannier90.pw uses MMN files also for the X, Y, Z matrices of gamma point
-calculations.  This is nowhere documented.
-
-From Wannier90 user_guide.pdf:
-
-    The last three integers specify the G vector, in reciprocal lattice units,
-    that brings the k-point specified by the second integer, and that thus lives inside
-    the first BZ zone, to the actual k + b we need.
-
 
 """
 function MMN(mmn_filename::String, ad_hoc_gamma = false)
     file = open(mmn_filename)
     parse_complex(number) =
         parse(Float32, number[1:20]) + parse(Float32, number[21:end]) * 1im
-    the_first_line_is_comment = readline(file)
+    _the_first_line_is_comment = readline(file)
     n_band, n_kpoint, n_neighbor = parse_line(readline(file), Int64)
     mmn = MMN(n_band, n_kpoint, n_neighbor, Dict(), Dict())
     lines = readlines(file)
@@ -537,6 +542,9 @@ end
 
 
 """
+    NeighborIntegral(mmn, k_map)
+
+Construct a `NeighborIntegral` from a `MMN` object and a `k_map`.
 """
 function NeighborIntegral(mmn::MMN, k_map::Dict{Int64,KPoint})
     n = NeighborIntegral()
@@ -596,11 +604,12 @@ end
 
 
 """
-Create a gauge from an AMN object.
+    Gauge(grid, amn, k_map, [orthonormalization = true])
+
+Create a gauge from an `AMN` object and a `k_map`.
 """
 
 function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int64,KPoint}, orthonormalization = true)
-    # g = Dict{KPoint, Matrix{ComplexFxx}}()
     gauge = Gauge(grid)
 
     orthonormalize(A::AbstractMatrix) =

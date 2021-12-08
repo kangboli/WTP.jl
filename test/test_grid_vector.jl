@@ -66,7 +66,7 @@ homecell = transform_grid(reciprocal_lattice)
 ## Test that indexing a grid with the linear index of a grid vector gives back the grid vector.
 
 for r in homecell
-    @test homecell[linear_index(r)] == r
+    @test homecell(linear_index(r)) == r
 end
 
 

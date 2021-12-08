@@ -1,5 +1,10 @@
-WTP provides some IO capabilities for interfacing with Quantum Espresso and 
-Wannier90
+WTP provides some IO capabilities for interfacing with Quantum Espresso and Wannier90.
+
+This documentation represents my best effort on figuring out the file formats.
+It does not serve as a reference, but it's probably as good as than any. If
+there is a difference from the documentation of Quantum Espresso/Wannier90, you
+should rely on their documentation instead (if you can find them :P ).
+
 
 ```@setup iopw
 using WTP

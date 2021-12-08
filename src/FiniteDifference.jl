@@ -49,6 +49,10 @@ function find_neighbors(kpoint::KPoint, scheme::FiniteDifference)
     return (dk -> kpoint + dk).([dk_list; -dk_list])
 end
 
+function gauge_transform(scheme::FiniteDifference, U::Gauge)
+    @set scheme.neighbor_basis_integral = gauge_transform(neighbor_basis_integral(scheme), U)
+end
+
 abstract type W90FiniteDifference <: FiniteDifference end
 
 """
@@ -118,7 +122,9 @@ end
 abstract type BranchStable end
 abstract type BranchNaive end
 
-center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int) = center(M, scheme, n, BranchStable)
+center(scheme::W90FiniteDifference, n::Integer) =center(scheme, n, BranchNaive) 
+center(scheme::W90FiniteDifference, n::Integer, ::Type{T}) where T = center(neighbor_basis_integral(scheme), scheme, n, T)
+center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer) = center(M, scheme, n, BranchNaive)
 
 function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchNaive})
     function kpoint_contribution(k::KPoint)
@@ -150,6 +156,7 @@ function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type
     
 end
 
+second_moment(scheme::W90FiniteDifference, n::Int) = second_moment(neighbor_basis_integral(scheme), scheme, n)
 
 function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     function kpoint_contribution(k::KPoint)
@@ -163,8 +170,11 @@ function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
 
-spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int) = second_moment(M, scheme, n) - 
-    norm(center(M, scheme, n))^2
+spread(scheme::W90FiniteDifference, n::Integer) = spread(scheme, n, BranchNaive)
+spread(scheme::W90FiniteDifference, n::Integer, ::Type{T}) where T = spread(neighbor_basis_integral(scheme), scheme, n, T)
+spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer) = spread(M, scheme, n, BranchNaive) 
+spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer, ::Type{T}) where T = second_moment(M, scheme, n) - 
+    norm(center(M, scheme, n, T))^2
     
 
 
