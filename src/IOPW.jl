@@ -236,7 +236,7 @@ function single_orbital_from_wave_functions(
 
     i_kpoint!(orbital, wave_function.i_kpoint)
 
-    for i = 1:wave_function.max_n_planewaves
+    Threads.@threads for i = 1:wave_function.max_n_planewaves
         g = grid_vector_constructor(
             reciprocal_lattice,
             wave_function.miller[:, i] + overflow(k),
@@ -449,7 +449,7 @@ function wannier_from_save(
             size_to_domain(sizes),
         )
         wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k)
-        # w.evc = nothing
+        w.evc = nothing
     end
     return wannier
 end
@@ -513,6 +513,14 @@ function MMN(mmn_filename::String, ad_hoc_gamma = false)
     mmn = MMN(n_band, n_kpoint, n_neighbor, Dict(), Dict())
     lines = readlines(file)
 
+    function construct_matrix_from(start::Integer)
+        mat = zeros(ComplexF64, n_band, n_band)
+        Threads.@threads for j = 1:n_band 
+            mat[j, :] = (i->parse_complex(lines[start+(i-1)*n_band+j])).(1:n_band)
+        end
+        return mat
+    end
+
     r_1, r_2 = n_neighbor * (n_band^2 + 1), (n_band^2 + 1)
     for l_1 = 1:n_kpoint
         for l_2 = 1:n_neighbor
@@ -520,8 +528,7 @@ function MMN(mmn_filename::String, ad_hoc_gamma = false)
             i_kpoint, i_neighbor, g_x, g_y, g_z = parse_line(lines[start], Int64)
             ad_hoc_gamma && (i_neighbor = l_2)
             mmn.translations[i_kpoint=>i_neighbor] = (g_x, g_y, g_z)
-            mmn.integrals[i_kpoint=>i_neighbor] =
-                [parse_complex(lines[start+(i-1)*n_band+j]) for j = 1:n_band, i = 1:n_band]
+            mmn.integrals[i_kpoint=>i_neighbor] = construct_matrix_from(start)
         end
     end
     close(file)
@@ -563,17 +570,24 @@ function AMN(amn_filename::String)
     amn = AMN(n_band, n_kpoint, n_wannier, Dict())
     lines = readlines(file)
     r_1 = n_band^2
+    c = ReentrantLock()
+
+    function update_gauge(i_kpoint, m, n, value)
+        lock(c) do
+            haskey(amn.gauge, i_kpoint) ||
+                (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_band)))
+            amn.gauge[i_kpoint][m, n] = value
+        end
+    end
+
     for l_1 = 1:n_kpoint
-        for l_2 = 1:r_1
+        Threads.@threads for l_2 = 1:r_1
             line_number = (l_1 - 1) * r_1 + l_2
             m, n, i_kpoint, real_part, complex_part =
                 split(strip(lines[line_number]), r"\s+")
             m, n, i_kpoint = (s -> parse(Int64, s)).([m, n, i_kpoint])
             real_part, complex_part = (s -> parse(Float32, s)).([real_part, complex_part])
-
-            haskey(amn.gauge, i_kpoint) ||
-                (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_band)))
-            amn.gauge[i_kpoint][m, n] = real_part + complex_part * 1im
+            update_gauge(i_kpoint, m, n, real_part + complex_part * 1im) 
         end
     end
     close(file)
