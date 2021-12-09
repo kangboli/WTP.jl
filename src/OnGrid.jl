@@ -8,6 +8,10 @@ export OnGrid,
     element!,
     elements,
     elements!,
+    ifft,
+    fft,
+    ifft!,
+    fft!,
     standardize,
     wtp_normalize,
     wtp_normalize!,
@@ -120,6 +124,8 @@ translation(on_grid::OnGrid) = let g = grid(on_grid)
 end
 
 """
+    wtp_normalize(on_grid)
+
 Normalize on_grid to unit norm. 
 """
 function wtp_normalize(on_grid::OnGrid)
@@ -129,13 +135,13 @@ function wtp_normalize(on_grid::OnGrid)
 end
 
 """
-Same as normalize, but may modify the argument if mutable.
+    wtp_normalize!(on_grid)
+
+Same as normalize, but in place.
 """
 function wtp_normalize!(on_grid::OnGrid)
-    # elems = elements(on_grid)
     normalization_factor = norm(elements(on_grid))
-    # println(normalization_factor)
-    elements!(on_grid, elements(on_grid) / normalization_factor)
+    rdiv!(elements(on_grid), normalization_factor)
     return on_grid
 end
 
@@ -153,9 +159,6 @@ Values outside the grid will be wrapped around.
 
                      2 ... N-1
 -N+1 -N+2 ...  0  1  2 ... N-1 N
-
-This operation does modify the underlying array.
-# This implementation is faster with circshift.
 """
 function standardize(orbital::OnGrid)
     amount = translation(orbital)
@@ -230,6 +233,11 @@ function mul(scalar::Number, o_1::OnGrid{T}) where T
     return o_2
 end
 
+function Base.abs2(o_1::OnGrid{T}) where T
+    o_2 = resemble(o_1, T, abs2.(elements(o_1)))
+    return o_2
+end
+
 Base.:+(o_1::OnGrid, o_2::OnGrid) = add(o_1, o_2)
 Base.:-(o_1::OnGrid) = negate(o_1)
 Base.:-(o_1::OnGrid, o_2::OnGrid) = minus(o_1, o_2)
@@ -243,18 +251,45 @@ Base.adjoint(o_1::OnGrid) = dagger(o_1)
 
 
 """
-Fast Fourier Transform of an orbital.
+    fft(on_grid)
 
-This can be, and should be, parallelized with PencilFFT.jl
+Fast Fourier Transform of an `OnGrid` object.
 """
-function fft(orbital::OnGrid{T}) where T <:HomeCell
-    new_elements = FFTW.fft(elements(orbital))
-    return resemble(orbital, dual_grid(T), new_elements) |> wtp_normalize!
+function fft(on_grid::OnGrid{T}) where T <: HomeCell
+    new_elements = FFTW.fft(elements(on_grid))
+    return resemble(on_grid, dual_grid(T), new_elements) |> wtp_normalize!
 end
 
-function ifft(orbital::OnGrid{T}) where T<:ReciprocalLattice
-    new_elements = FFTW.ifft(elements(orbital))
-    return resemble(orbital, dual_grid(T), new_elements) |> wtp_normalize!
+"""
+    fft!(on_grid)
+
+In place Fast Fourier Transform (FFT) of an `OnGrid` object.
+The memory of the argument will be repurposed for its FFT.
+"""
+function fft!(on_grid::OnGrid{T}) where T <: HomeCell 
+    FFTW.fft!(elements(on_grid))
+    return resemble(on_grid, dual_grid(T), elements(on_grid)) |> wtp_normalize!
+end
+
+"""
+    ifft(orbital)
+
+Inverse Fast Fourier Transform of an `OnGrid` object.
+The memory of the argument will be repurposed for its FFT.
+"""
+function ifft(on_grid::OnGrid{T}) where T <: ReciprocalLattice
+    new_elements = FFTW.ifft(elements(on_grid))
+    return resemble(on_grid, dual_grid(T), new_elements) |> wtp_normalize!
+end
+
+"""
+    ifft!(orbital)
+
+In place Inverse Fast Fourier Transform of an `OnGrid` object.
+"""
+function ifft!(on_grid::OnGrid{T}) where T <: ReciprocalLattice
+    FFTW.ifft!(elements(on_grid))
+    on_grid = resemble(on_grid, dual_grid(T), elements(on_grid)) |> wtp_normalize!
 end
 
 function html(on_grid::OnGrid)

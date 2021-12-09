@@ -6,13 +6,11 @@ export kpoint,
     cache!,
     index_band,
     compare,
-    fft,
     AbstractUnkOrbital,
     KPoint,
     UnkBasisOrbital,
     UnkOrbital,
     orthonormal,
-    ifft,
     vectorize
 
 """
@@ -39,22 +37,12 @@ index_band(orbital) = orbital.index_band
 
 function braket(o_1::OnGrid, o_2::OnGrid)
     !ket(o_1) && ket(o_2) || error("braket requires a bra and a ket.")
-    # cache lookup.
-    # This cache turned out to be very slow.
-    # c = cache(o_1)
-    # if c !== nothing 
-    #     result = c[kpoint(o_1), kpoint(o_2)]
-    #     result !== nothing && return result[index_band(o_1), index_band(o_2)]
-    #     println("no cache entry for $(kpoint(o_1)) \n and \n $(kpoint(o_2))")
-    # end
     translation(o_1) == translation(o_2) || error("orbitals not aligned: $(translation(o_1))\n $(translation(o_2))")
     v_1 = reshape(elements(o_1), length(grid(o_1)))
     v_2 = reshape(elements(o_2), length(grid(o_2)))
     return transpose(v_1) * v_2
 end
 
-# Base.:*(o_1::Any, o_2::AbstractUnkOrbital) = braket(o_1, o_2)
-# Base.:*(o_1::AbstractUnkOrbital, o_2::Any) = braket(o_1, o_2)
 
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T
@@ -102,40 +90,6 @@ function resemble(orbital::UnkBasisOrbital{S}, ::Type{T}, new_elements=nothing) 
     end
     UnkBasisOrbital(g, new_elements, kpoint(orbital), index_band(orbital)) 
 end
-
-
-# """
-# Fast Fourier Transform of an orbital.
-
-# This can be, and should be, parallelized with PencilFFT.jl
-# """
-# function fft(orbital::UnkBasisOrbital{T}) where T <:HomeCell
-#     new_elements = FFTW.fft(elements(orbital))
-#     new_grid = transform_grid(grid(orbital))
-
-#     return UnkBasisOrbital{dual_grid(T)}(
-#         new_grid,
-#         new_elements,
-#         kpoint(orbital),
-#         index_band(orbital),
-#         ket(orbital),
-#         Dict(),
-#     ) |> wtp_normalize!
-# end
-
-# function ifft(orbital::UnkBasisOrbital{T}) where T<:ReciprocalLattice
-#     new_elements = FFTW.ifft(elements(orbital))
-#     new_grid = transform_grid(grid(orbital))
-
-#     return UnkBasisOrbital{dual_grid(T)}(
-#         new_grid,
-#         new_elements,
-#         kpoint(orbital),
-#         index_band(orbital),
-#         ket(orbital),
-#         Dict(),
-#     ) |> wtp_normalize!
-# end
 
 
 function Base.show(io::IO, orbital::UnkBasisOrbital)
@@ -240,8 +194,6 @@ function Base.show(io::IO, orbital::UnkOrbital)
     ket(orbital) ? print(io, "ket\n") : print(io, "bra\n")
     print(io, "coefficients:\n$(indent(repr(coefficients(orbital))))" * "\n")
     print(io, "n_basis:\n$(indent(string(length(basis(orbital)))))" * "\n")
-    # print(io, "kpoint:\n$(indent(repr(kpoint(orbital))))\n")
-    # print(io, "band:\n$(indent(repr(index_band(orbital))))")
 end
 
 function compare(o_1, o_2)
@@ -259,6 +211,7 @@ function consolidate(orbital::UnkOrbital)
     elements = nothing
     grid = nothing
     for (c, b) in zip(coefficients(orbital), basis(orbital))
+        c == 0 && continue
         new_grid, new_elements = consolidate(b)    
         grid === nothing && (grid = new_grid)
         grid == new_grid || error("Grids Mismatching.")

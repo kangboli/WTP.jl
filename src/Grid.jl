@@ -17,6 +17,8 @@ domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, I
 """
 abstract type Grid end
 
+# The Domain
+
 """
     domain(grid)
 
@@ -30,7 +32,14 @@ domain(grid::Grid) = grid.domain
 
 Set the domain of `grid` to `new_grid`.
 """
-domain!(grid::Grid, new_domain) = @set grid.domain = new_domain
+domain!(grid::Grid, new_domain) = grid.domain = new_domain
+
+"""
+    set_domain(grid, new_domain)
+
+Create a copy of `grid` with its domain set to `new_domain`.
+"""
+set_domain(grid::Grid, new_domain) = @set grid.domain = new_domain
 
 x_min(grid::Grid) = domain(grid)[1][1]
 x_max(grid::Grid) = domain(grid)[1][2]
@@ -59,23 +68,6 @@ mins(grid::Grid) = [d[1] for d in domain(grid)]
 Similar to `mins(grid)`, but gives the maximum indices instead.
 """
 maxes(grid::Grid) = [d[2] for d in domain(grid)]
-
-"""
-    array(grid)
-
-Convert the grid to a multidimensional array.
-
-
-Example:
-
-```julia
-homecell = HomeCell3D(CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
-array(homecell)[1, 1, 1]
-# grid: HomeCell3D
-# _coefficients: [-2, -2, -2]
-```
-"""
-array(grid::Grid) = grid[:,:,:]
 
 """
     n_dims(T)
@@ -109,18 +101,17 @@ The vectors returned are always ket vectors.
 basis(grid::Grid) = grid.basis
 
 """
-    dual_grid(T)
-
-The type of the dual grid of T.
-"""
-dual_grid(::Type{T}) where T = T
-
-"""
     size(g)
 
 The size of the grid. The result is a tuple of integers.
 """
 Base.size(g::Grid) = Tuple(d[2]-d[1]+1 for d in domain(g)) 
+
+"""
+    length(g)
+
+The number of grid points in the grid.
+"""
 Base.length(g::Grid) = prod(size(g))
 
 const Range = AbstractVector{<:Integer}
@@ -167,7 +158,27 @@ Indexing a grid with a list of linear indices gives a list of grid vector.
 (g::Grid)(::Colon) = [g(i) for i in 1:length(g)]
 
 """
-Iterate over the grid gives a sequence of grid vectors that goes through each grid point.
+    array(grid)
+
+Convert the grid to a multidimensional array.
+
+
+Example:
+
+```julia
+homecell = HomeCell3D(CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
+array(homecell)[1, 1, 1]
+# grid: HomeCell3D
+# _coefficients: [-2, -2, -2]
+```
+"""
+array(grid::Grid) = grid[:,:,:]
+
+# Iteration
+
+"""
+Iterate over the grid gives a sequence of grid vectors that goes through each
+grid point. The order of the iteration is not guaranteed.
 """
 function Base.iterate(grid::Grid)
 
@@ -185,6 +196,13 @@ function Base.iterate(grid::Grid, state)
 end
 
 """
+    dual_grid(T)
+
+The type of the dual grid of T.
+"""
+dual_grid(::Type{T}) where T = T
+
+"""
     transform_grid(g)
 
 FFT of the grid.
@@ -197,12 +215,6 @@ transform_grid(grid::T) where T <: Grid =
     let A = vector3_to_matrix(basis(grid)) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
         dual_grid(T)(matrix_to_vector3(B), size_to_domain(size(grid)))
     end
-
-invert_grid(grid::T) where T <: Grid = 
-    inverse_grid(T)(
-        Tuple(2b / s for (b, s) in zip(basis(grid), size(grid))), 
-        domain(grid)
-    )
 
 """
     snap(grid, point)
@@ -317,3 +329,10 @@ inverse_grid(::Type{HomeCell3D}) = RealLattice3D
 inverse_grid(::Type{RealLattice3D}) = HomeCell3D
 inverse_grid(::Type{BrillouinZone3D}) = ReciprocalLattice3D
 inverse_grid(::Type{ReciprocalLattice3D}) = BrillouinZone3D
+
+
+# invert_grid(grid::T) where T <: Grid = 
+#     inverse_grid(T)(
+#         Tuple(2b / s for (b, s) in zip(basis(grid), size(grid))), 
+#         domain(grid)
+#     )

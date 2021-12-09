@@ -193,7 +193,6 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     end
 
     for k in collect(brillouin_zone)
-    # for k in collect(brillouin_zone)
         for neighbor in find_neighbors(k, scheme)
             M[neighbor, k] !== nothing && continue
             # M[k, neighbor] = adjoint(U[k]) * mmn_matrix(k, neighbor) * U[neighbor]

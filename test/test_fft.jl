@@ -22,10 +22,11 @@ using WTP
     @test norm(elements(transformed_back) - elements(real_orbital)) < 1e-6
     @test norm(elements(real_transformed) - elements(wannier[gamma_point][1]) ) < 1e-6
 
+    # Test that the in-place fft mutates the orbital.
+    real_transformed = fft!(real_orbital)
+    @test norm(elements(real_orbital) - elements(real_transformed)) < 1e-7
+    # Test that the in-place ifft mutate the orbital back.
+    real_orbital = ifft!(real_transformed)
+    @test norm(elements(real_orbital) - elements(real_transformed)) < 1e-7
 
-    # for n = 1:20
-    #     real_transformed = ifft(real_orbitals[n])
-    #     wtp_normalize!(real_transformed)
-    #     @test (norm(elements(real_transformed) - elements(wannier[gamma_point][n]))) < 1e-7
-    # end
 end

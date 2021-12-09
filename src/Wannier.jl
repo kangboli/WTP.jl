@@ -44,7 +44,8 @@ struct Wannier{T <: OnGrid} <: OnGrid{BrillouinZone}
 end
 
 gauge(wannier::Wannier) = wannier.gauge
-gauge!(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
+gauge!(wannier::Wannier, new_gauge::Gauge) = wannier.gauge = new_gauge
+set_gauge(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
 reciprocal_lattice(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
 
 function init_wannier(grid::BrillouinZone)
@@ -62,6 +63,14 @@ function fft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
     return transformed
 end
 
+function fft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
+    g = grid(wannier)
+    for k in g
+        fft!.(wannier[k])
+    end
+    wannier = Wannier(g, elements(wannier), gauge(wannier))
+end
+
 function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     g = grid(wannier)
     elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},n_dims(T)}(undef, size(g))
@@ -72,6 +81,13 @@ function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     return transformed
 end
 
+function ifft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
+    g = grid(wannier)
+    for k in g
+        ifft!.(wannier[k])
+    end
+    wannier = Wannier(g, elements, gauge(wannier))
+end
 
 """
 Get an orbital out of the brillouin zone from its copy within the brillouin zone
