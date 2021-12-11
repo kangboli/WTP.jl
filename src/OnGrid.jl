@@ -8,10 +8,13 @@ export OnGrid,
     element!,
     elements,
     elements!,
-    ifft,
+    set_elements,
     fft,
-    ifft!,
-    fft!,
+    @fft!,
+    _fft!,
+    ifft,
+    @ifft!,
+    _ifft!,
     standardize,
     wtp_normalize,
     wtp_normalize!,
@@ -44,6 +47,7 @@ element!(on_grid::OnGrid, val, indices...) = on_grid.elements[indices...] = val
 
 elements(on_grid::OnGrid) = on_grid.elements
 elements!(on_grid::OnGrid, new_elements) = on_grid.elements = new_elements
+set_elements(on_grid::OnGrid, new_elements) = @set on_grid.elements = new_elements
 
 
 
@@ -206,6 +210,7 @@ function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T <: Grid}
     # ket(o_1) == ket(o_2) || error("Adding bra to ket.")
     o_3 = resemble(o_2, T)
     elements!(o_3, elements(o_1) + elements(o_2))
+    # o_3 = set_elements(o_2, elements(o_1) + elements(o_2))
     return o_3
 end
 
@@ -222,8 +227,9 @@ end
 function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T <: Grid, S <: Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
     ket(o_1) == ket(o_2) || error("elementwise product cannot take a bra and a ket.")
-    o_3 = resemble(o_2, S)
-    elements!(o_3, elements(o_1) .* elements(o_2))
+    # o_3 = resemble(o_2, S)
+    # elements!(o_3, elements(o_1) .* elements(o_2))
+    o_3 = set_elements(o_2, elements(o_1) .* elements(o_2))
     return o_3
 end
 
@@ -261,14 +267,32 @@ function fft(on_grid::OnGrid{T}) where T <: HomeCell
 end
 
 """
-    fft!(on_grid)
+    _fft!(on_grid)
+
+Generally you shouldn't use this method since it leaves `on_grid`
+in an invalid state. Use `@fft!` instead to set `on_grid` to `nothing`.
 
 In place Fast Fourier Transform (FFT) of an `OnGrid` object.
 The memory of the argument will be repurposed for its FFT.
 """
-function fft!(on_grid::OnGrid{T}) where T <: HomeCell 
+function _fft!(on_grid::OnGrid{T}) where T <: HomeCell 
     FFTW.fft!(elements(on_grid))
     return resemble(on_grid, dual_grid(T), elements(on_grid)) |> wtp_normalize!
+end
+
+"""
+    @fft!(real_orbital)
+
+Perform a in-place Fourier Transform. 
+`real_orbital` will be set to `nothing`
+"""
+macro fft!(real_orbital)
+    esc(Expr(:block, Expr(
+        :(=), :reciprocal_orbital,
+        Expr(:call, Expr(Symbol("."), :WTP, QuoteNode(:_fft!,)), real_orbital)
+    ),
+    Expr(:(=), real_orbital, :nothing),
+    :reciprocal_orbital))
 end
 
 """
@@ -283,13 +307,30 @@ function ifft(on_grid::OnGrid{T}) where T <: ReciprocalLattice
 end
 
 """
-    ifft!(orbital)
+    _ifft!(orbital)
+
+Generally you shouldn't use this method since it leaves `on_grid`
+in an invalid state. Use `@ifft!` instead to set `on_grid` to `nothing`.
 
 In place Inverse Fast Fourier Transform of an `OnGrid` object.
 """
-function ifft!(on_grid::OnGrid{T}) where T <: ReciprocalLattice
+function _ifft!(on_grid::OnGrid{T}) where T <: ReciprocalLattice
     FFTW.ifft!(elements(on_grid))
     on_grid = resemble(on_grid, dual_grid(T), elements(on_grid)) |> wtp_normalize!
+end
+
+"""
+    @ifft!(reciprocal_orbital)
+
+Perform a in-place inverse Fourier Transform. 
+`reciprocal_orbital` will be set to `nothing`
+"""
+macro ifft!(reciprocal_orbital) esc(Expr(:block, Expr(
+        :(=), :real_orbital,
+        Expr(:call, Expr(Symbol("."), :WTP, QuoteNode(:_ifft!,)), reciprocal_orbital)
+    ),
+    Expr(:(=), reciprocal_orbital, :nothing),
+    :real_orbital))
 end
 
 function html(on_grid::OnGrid)

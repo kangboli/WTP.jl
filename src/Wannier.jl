@@ -3,6 +3,7 @@ export Wannier,
     Gauge,
     gauge,
     gauge!,
+    set_gauge,
     NeighborIntegral,
     find_neighbors,
     integrals,
@@ -17,6 +18,8 @@ struct Gauge <: OnGrid{BrillouinZone}
     grid::BrillouinZone
     elements::Array{AbstractMatrix{ComplexFxx}, <:Any}
 end
+
+ket(g::Gauge) = true
 
 Gauge(grid::T) where T <: BrillouinZone = 
     Gauge(grid, Array{Matrix{ComplexFxx}, n_dims(T)}(undef, size(grid)))
@@ -63,12 +66,10 @@ function fft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
     return transformed
 end
 
-function fft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
-    g = grid(wannier)
-    for k in g
-        fft!.(wannier[k])
-    end
-    wannier = Wannier(g, elements(wannier), gauge(wannier))
+function _fft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
+    Wannier(grid(wannier), 
+    elements(map(k->_fft!.(wannier[k]), grid(wannier))),
+    gauge(wannier))
 end
 
 function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
@@ -81,12 +82,10 @@ function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     return transformed
 end
 
-function ifft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
-    g = grid(wannier)
-    for k in g
-        ifft!.(wannier[k])
-    end
-    wannier = Wannier(g, elements, gauge(wannier))
+function _ifft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
+    Wannier(grid(wannier), 
+    elements(map(k->_ifft!.(wannier[k]), grid(wannier))),
+    gauge(wannier))
 end
 
 """
@@ -107,7 +106,7 @@ end
 function Base.getindex(wannier::Wannier, n::Integer, k::KPoint)
     # gauge = elements(gauge(wannier))[miller_to_standard(k, translation(wannier))...]
     g = gauge(wannier)[k]
-    return UnkOrbital(g[n, :], wannier[k], true, true)
+    return UnkOrbital(g[:, n], wannier[k], true, true)
 end
 
 """
