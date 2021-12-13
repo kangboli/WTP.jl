@@ -1,4 +1,4 @@
-export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three
+export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set
 
 """
     size_to_domain(sizes)
@@ -126,3 +126,26 @@ three_to_one(x::Integer, y::Integer, z::Integer, sizes) =
     let (nx, ny, _) = sizes
         (z - 1) * ny * nx + (y - 1) * nx + x
     end
+
+
+"""
+    @set a.b = c
+
+Create a copy of `a` with its field `b` set to `c`. 
+
+This is a limited version of `@set` from `Setfield` that does not leak memory.
+This should be deprecated if the memory problem with `Setfield` is figured out.
+"""
+macro set(assignement)
+    target = assignement.args[1]
+    object = target.args[1]
+    modify_field = target.args[2]
+    value = assignement.args[2]
+
+    esc(:(set($object, $modify_field, $value)))
+end
+
+function set(object, modify_field::Symbol, value)
+    values = [f == modify_field ? value : getfield(object, f) for f in fieldnames(typeof(object))]
+    return typeof(object)(values...)
+end

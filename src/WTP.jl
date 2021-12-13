@@ -1,12 +1,12 @@
 module WTP
 
-using Setfield
 using LinearAlgebra
 using StaticArrays
 using Printf
 using FFTW
 using ProgressMeter
 using DataStructures
+using Folds
 
 const ComplexFxx = ComplexF64
 

@@ -1,7 +1,7 @@
-export Grid, domain, domain!, basis, dual_grid, 
-HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
-x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
-HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid
+export Grid, domain, domain!, basis, dual_grid,
+    HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
+    x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
+    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid
 
 """
 Non-orthogonal 3D periodic grid that comply to the centering convention.
@@ -47,6 +47,13 @@ y_min(grid::Grid) = domain(grid)[2][1]
 y_max(grid::Grid) = domain(grid)[2][2]
 z_min(grid::Grid) = domain(grid)[3][1]
 z_max(grid::Grid) = domain(grid)[3][2]
+
+function expand(grid::Grid, factors = [2, 2, 2])
+    return set_domain(grid, (
+        (2x_min(grid), 2x_max(grid)),
+        (2y_min(grid), 2y_max(grid)),
+        (2z_min(grid), 2z_max(grid))))
+end
 
 """
     mins(grid::Grid)
@@ -105,7 +112,7 @@ basis(grid::Grid) = grid.basis
 
 The size of the grid. The result is a tuple of integers.
 """
-Base.size(g::Grid) = Tuple(d[2]-d[1]+1 for d in domain(g)) 
+Base.size(g::Grid) = Tuple(d[2] - d[1] + 1 for d in domain(g))
 
 """
     length(g)
@@ -115,7 +122,7 @@ The number of grid points in the grid.
 Base.length(g::Grid) = prod(size(g))
 
 const Range = AbstractVector{<:Integer}
-const NotColon = Union{Range, Integer}
+const NotColon = Union{Range,Integer}
 """
     g[0, 0, 1]
 
@@ -149,13 +156,13 @@ This provides a mapping between 1D indices (which are to be used for matrix algo
 and grid vectors.
 """
 (g::Grid)(i::Integer) = grid_vector_constructor(g,
-    standard_to_miller(size(g), one_to_three(i, size(g)), [0,0,0]))
+    standard_to_miller(size(g), one_to_three(i, size(g)), [0, 0, 0]))
 
 """
 Indexing a grid with a list of linear indices gives a list of grid vector.
 """
 (g::Grid)(linear_indices::Range) = [g(i) for i in linear_indices]
-(g::Grid)(::Colon) = [g(i) for i in 1:length(g)]
+(g::Grid)(::Colon) = [g(i) for i = 1:length(g)]
 
 """
     array(grid)
@@ -172,7 +179,7 @@ array(homecell)[1, 1, 1]
 # _coefficients: [-2, -2, -2]
 ```
 """
-array(grid::Grid) = grid[:,:,:]
+array(grid::Grid) = grid[:, :, :]
 
 # Iteration
 
@@ -200,7 +207,7 @@ end
 
 The type of the dual grid of T.
 """
-dual_grid(::Type{T}) where T = T
+dual_grid(::Type{T}) where {T} = T
 
 """
     transform_grid(g)
@@ -211,7 +218,7 @@ The resulting basis vectors should satisfy
 aᵢᵀ bᵢ = 2π / sᵢ,
 where s is the size of the grid (number of grid points in each direction).
 """
-transform_grid(grid::T) where T <: Grid = 
+transform_grid(grid::T) where {T<:Grid} =
     let A = vector3_to_matrix(basis(grid)) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
         dual_grid(T)(matrix_to_vector3(B), size_to_domain(size(grid)))
     end
@@ -280,11 +287,11 @@ The home cell in 3D. The ``u_{nk}`` orbitals in the real space is represented as
 function on this grid. 
 """
 struct HomeCell3D <: HomeCell
-    basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
+    basis::Tuple{Vector3,Vector3,Vector3}
+    domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
 end
 
-abstract type ReciprocalLattice <: Grid end 
+abstract type ReciprocalLattice <: Grid end
 
 """
 The 3D reciprocal lattice. The ``u_{nk}`` orbitals in the frequency space are
@@ -298,8 +305,8 @@ reciprocal_lattice = transform_grid(homecell)
 ```
 """
 struct ReciprocalLattice3D <: ReciprocalLattice
-    basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
+    basis::Tuple{Vector3,Vector3,Vector3}
+    domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
 end
 
 abstract type BrillouinZone <: Grid end
@@ -307,8 +314,8 @@ abstract type BrillouinZone <: Grid end
 The 3D Brillouin zone. The usage is the same of `HomeCell3D`.
 """
 struct BrillouinZone3D <: BrillouinZone
-    basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
+    basis::Tuple{Vector3,Vector3,Vector3}
+    domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
 end
 
 abstract type RealLattice <: Grid end
@@ -316,8 +323,8 @@ abstract type RealLattice <: Grid end
 The 3D crystal lattice. This is the dual grid of `BrillouinZone3D`.
 """
 struct RealLattice3D <: RealLattice
-    basis::Tuple{Vector3, Vector3, Vector3}
-    domain::Tuple{Tuple{Integer, Integer}, Tuple{Integer, Integer}, Tuple{Integer, Integer}}
+    basis::Tuple{Vector3,Vector3,Vector3}
+    domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
 end
 
 dual_grid(::Type{HomeCell3D}) = ReciprocalLattice3D

@@ -19,7 +19,8 @@ export OnGrid,
     wtp_normalize,
     wtp_normalize!,
     wtp_sparse,
-    wtp_sparse!
+    wtp_sparse!,
+    expand
 
 """
 A function defined on a grid. 
@@ -38,6 +39,7 @@ The grid on which the OnGrid object is defined.
 """
 grid(on_grid::OnGrid)::Grid = on_grid.grid
 grid!(on_grid::OnGrid, new_grid) = on_grid.grid = new_grid
+set_grid(on_grid::OnGrid, new_grid) = @set on_grid.grid = new_grid
 
 """
 Access to the elements of on_grid as they are internally stored.
@@ -189,8 +191,19 @@ mutable struct SimpleFunctionOnGrid{T} <: OnGrid{T}
     ket::Bool
 end
 
+"""
+    map(f, grid)
+
+Map a *pure* function `f` onto every grid vector on `grid`.
+The map is threaded, so an unpure `f` would probabbly be unsafe.
+"""
 function Base.map(f::Function, grid::T) where T <: Grid
-    raw_elements = map(f, array(grid))
+    grid_vectors = array(grid)
+    # raw_elements = Array{Any, n_dims(T)}(undef, size(grid_vectors))
+    # Threads.@threads for I in collect(CartesianIndices(grid_vectors))
+    #     raw_elements[I] = f(grid_vectors[I])
+    # end
+    raw_elements = Folds.map(f, grid_vectors, ThreadedEx())
     shifted_elements = circshift(raw_elements, mins(grid))
     result = SimpleFunctionOnGrid{T}(grid, shifted_elements, true)
     return result
@@ -342,6 +355,18 @@ function html(on_grid::OnGrid)
 end
 
 Base.show(io::IO, ::MIME"text/html", on_grid::OnGrid) = println(io, html(on_grid))
+
+"""
+    expand(on_grid, factors)
+
+Expand (copy) an `OnGrid` object by `factors` along the respective directions.
+"""
+function expand(on_grid::OnGrid, factors=[2, 2, 2] )
+    new_elements = repeat(elements(on_grid), factors...)
+    new_on_grid = set_elements(on_grid, new_elements)
+    new_grid = expand(grid(on_grid), factors...)
+    return set_grid(new_on_grid, new_grid)
+end
 
 # """
 

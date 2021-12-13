@@ -42,7 +42,7 @@ Indexing a wannier with a k-point gives a set of basis functions for the bands a
 """
 struct Wannier{T <: OnGrid} <: OnGrid{BrillouinZone}
     grid::BrillouinZone
-    elements::Array{Vector{T}, <:Any}
+    elements::Array{<:AbstractVector{T}, <:Any}
     gauge::Gauge
 end
 
