@@ -196,13 +196,21 @@ end
 
 Map a *pure* function `f` onto every grid vector on `grid`.
 The map is threaded, so an unpure `f` would probabbly be unsafe.
+
+More likely than not, you would use the `do` syntax
+
+```julia
+map(homecell) do r
+    exp(1im * k' * r)
+end
+```
+
+This syntax is very simple and expressive, but keep in mind that this involves
+compiling an anonymous function for each map, which costs as much as the mapping
+it self. 
 """
 function Base.map(f::Function, grid::T) where T <: Grid
     grid_vectors = array(grid)
-    # raw_elements = Array{Any, n_dims(T)}(undef, size(grid_vectors))
-    # Threads.@threads for I in collect(CartesianIndices(grid_vectors))
-    #     raw_elements[I] = f(grid_vectors[I])
-    # end
     raw_elements = Folds.map(f, grid_vectors, ThreadedEx())
     shifted_elements = circshift(raw_elements, mins(grid))
     result = SimpleFunctionOnGrid{T}(grid, shifted_elements, true)
@@ -361,33 +369,14 @@ Base.show(io::IO, ::MIME"text/html", on_grid::OnGrid) = println(io, html(on_grid
 
 Expand (copy) an `OnGrid` object by `factors` along the respective directions.
 """
-function expand(on_grid::OnGrid, factors=[2, 2, 2] )
+function expand(on_grid::OnGrid, factors=[2, 2, 2])
     new_elements = repeat(elements(on_grid), factors...)
     new_on_grid = set_elements(on_grid, new_elements)
-    new_grid = expand(grid(on_grid), factors...)
+    new_grid = expand(grid(on_grid), factors)
     return set_grid(new_on_grid, new_grid)
 end
 
-# """
-
-# Standardize the representation of an OnGrid object.
-# The resulting object will be defined from -N+1 (N) to N.
-# Values outside the grid will be wrapped around.
-
-#                      2 ... N-1
-# -N+1 -N+2 ...  0  1  2 ... N-1 N
-
-# This operation does modify the underlying array.
-# This default implementation is slow.
-# """
-# function standardize(on_grid::OnGrid)
-#     amount = translation(on_grid)
-#     non_zeros = filter(n -> n != 0, coefficients(amount))
-#     length(non_zeros) == 0 && return on_grid
-
-#     new_on_grid = translate(deepcopy(on_grid), -amount)
-#     for p in grid(new_on_grid)
-#         new_on_grid[p] = on_grid[p]
-#     end
-#     return new_on_grid
-# end
+function vectorize(o::OnGrid)
+    # wfc(o)!==nothing ? wfc(o).evc[:, index_band(o)] : 
+    reshape(elements(o), prod(size(grid(o))))
+end

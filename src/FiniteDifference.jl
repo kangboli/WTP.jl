@@ -187,12 +187,12 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     """
     function mmn_matrix(k_1::T, k_2::T) where T <: AbstractGridVector{<:BrillouinZone}
 
-        U = hcat(map(vectorize, u[k_1])...)
+        U_adjoint = vcat(adjoint.(vectorize.(u[k_1]))...)
         V = hcat(map(vectorize, u[k_2])...)
-        return U' * V
+        return U_adjoint * V
     end
 
-    for k in collect(brillouin_zone)
+    @showprogress for k in collect(brillouin_zone)
         for neighbor in find_neighbors(k, scheme)
             M[neighbor, k] !== nothing && continue
             # M[k, neighbor] = adjoint(U[k]) * mmn_matrix(k, neighbor) * U[neighbor]

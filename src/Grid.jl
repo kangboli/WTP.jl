@@ -49,10 +49,7 @@ z_min(grid::Grid) = domain(grid)[3][1]
 z_max(grid::Grid) = domain(grid)[3][2]
 
 function expand(grid::Grid, factors = [2, 2, 2])
-    return set_domain(grid, (
-        (2x_min(grid), 2x_max(grid)),
-        (2y_min(grid), 2y_max(grid)),
-        (2z_min(grid), 2z_max(grid))))
+    return set_domain(grid, size_to_domain(factors .* size(grid)))
 end
 
 """

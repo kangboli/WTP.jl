@@ -1,6 +1,6 @@
-using SparseArrays
+using SparseArrays, Transducers
 
-export NumericalOperator, integrate, indices, expand_storage
+export NumericalOperator, integrate, indices, expand_storage!
 
 """
 The users should treat the integrals as an efficient lookup table.
@@ -28,18 +28,28 @@ mutable struct NumericalOperator{T} <: OnGrid{T}
     storage::AbstractMatrix{ComplexFxx}
     valid::AbstractMatrix{Bool}
     indices::Dict{UInt64, <:Integer}
+    lock::ReentrantLock
 end
 
 function NumericalOperator(grid::T, elements::AbstractArray{<:Number, <:Any}) where T <: Grid
     storage = zeros(ComplexFxx, (1, 1))
     valid = zeros(Bool, (1, 1))
     indices = Dict{UInt64, Integer}()
-    NumericalOperator{T}(grid, elements, 1, storage, valid, indices)
+    NumericalOperator{T}(grid, elements, 1, storage, valid, indices, ReentrantLock())
 end
 
+"""
+    integrate(A, o_1, o_2)
+
+Compute the integral ⟨o₁|A|o₂⟩ serially.
+It is not straightforward to parallelize this.
+"""
 function integrate(A::NumericalOperator{T}, o_1::OnGrid{T}, o_2::OnGrid{T}) where T <: Grid
     (!ket(o_1) && ket(o_2)) || error("A bra and a ket are required for integrals.")
-    return sum(elements(o_1) .* elements(A) .* elements(o_2))
+    v_1 = vectorize(o_1)
+    v_2 = vectorize(o_2)
+    v_A = vectorize(A) 
+    return sum(@. v_1 * v_2 * v_A)
 end
 
 
@@ -55,7 +65,7 @@ storage!(A::Operator, new_storage) = A.storage = new_storage
 valid(A::Operator) = A.valid
 valid!(A::Operator, new_valid) = A.valid = new_valid
 
-function expand_storage(A)
+function expand_storage!(A)
     current_size = size(storage(A), 1)
     new_size = current_size + max(current_size ÷ 2, 1)
     new_storage = zeros(ComplexFxx, (new_size, new_size))
@@ -67,9 +77,14 @@ function expand_storage(A)
 end
 
 function Base.getindex(A::Operator, o_1::OnGrid, o_2::OnGrid)
-    if haskey(indices(A), objectid(o_1)) && haskey(indices(A), objectid(o_2)) 
-        m, n = indices(A)[objectid(o_1)], indices(A)[objectid(o_2)]
-        valid(A)[m, n] && return storage(A)[m, n]
+    lock(A.lock)
+    try
+        if haskey(indices(A), objectid(o_1)) && haskey(indices(A), objectid(o_2)) 
+            m, n = indices(A)[objectid(o_1)], indices(A)[objectid(o_2)]
+            valid(A)[m, n] && return storage(A)[m, n]
+        end
+    finally
+        unlock(A.lock)
     end
 
     result = integrate(A, o_1, o_2)
@@ -83,31 +98,67 @@ function Base.setindex!(A::Operator, value, o_1::OnGrid, o_2::OnGrid)
         indices(A)[objectid(o)] = current_index(A)
         current_index!(A, current_index(A) + 1)
     end
+    lock(A.lock)
+    try
 
     haskey(indices(A), objectid(o_1)) || add_index(o_1)
     haskey(indices(A), objectid(o_2)) || add_index(o_2)
 
-    while size(storage(A), 1) <= current_index(A) 
-        expand_storage(A)
-    end
+        while size(storage(A), 1) <= current_index(A) 
+            expand_storage!(A)
+        end
     m, n = indices(A)[objectid(o_1)], indices(A)[objectid(o_2)]
     storage(A)[m, n] = value
+
+    finally
+        unlock(A.lock)
+    end
 end
 
 Base.:|(A::Operator, o::OnGrid) = A => o
 Base.:|(o::OnGrid, A::Operator) = o => A
-Base.:|(o_1::OnGrid, A_and_o_2::Pair{<:Operator, <:OnGrid}) = let (A, o_2) = A_and_o_2
-    A[o_1, o_2]
+function Base.:|(o_1::OnGrid, A_and_o_2::Pair{<:Operator, <:OnGrid}) 
+    A, o_2 = A_and_o_2
+    result = A[o_1, o_2]
+    return result
 end
-Base.:|(o_1_and_A::Pair{<:OnGrid, <:Operator}, o_2::OnGrid) = let (o_1, A) = o_1_and_A
-    A[o_1, o_2]
+function Base.:|(o_1_and_A::Pair{<:OnGrid, <:Operator}, o_2::OnGrid) 
+    o_1, A = o_1_and_A
+    result = A[o_1, o_2]
+    return result
 end
 
 # Base.:|(A::Operator, y::AbstractVector) = [A => o_2 for o_2 in y]
-Base.:|(x, y::AbstractVector{<:OnGrid}) = [x | o_2 for o_2 in y]
-Base.:|(x::AbstractVector{<:OnGrid}, y) = [o_1 | y for o_1 in x]
-Base.:|(x::AbstractVector{<:OnGrid}, y::AbstractVector) = [o_1 | o_2 for o_1 in x, o_2 in y]
-Base.:|(x::AbstractVector, y::AbstractVector{<:OnGrid}) = [o_1 | o_2 for o_1 in x, o_2 in y]
+Base.:|(A::Operator, y::AbstractVector{<:OnGrid}) = A => y
+Base.:|(x::AbstractVector{<:OnGrid}, A::Operator) = x => A
+
+function Base.:|(o_1::OnGrid, A_and_y::Pair{<:Operator, <:AbstractVector}) 
+    A, y = A_and_y
+    batch_integrate(A, [o_1], y)
+end
+function Base.:|(x_and_A::Pair{<:AbstractVector, <:Operator}, o_2::OnGrid) 
+    x, A = x_and_A
+    batch_integrate(A, x, [o_2])
+end
+
+function Base.:|(x::AbstractVector{<:OnGrid}, A_and_y::Pair{<:Operator, <:AbstractVector}) 
+    A, y = A_and_y
+    batch_integrate(A, x, y)
+end
+function Base.:|(x_and_A::Pair{<:AbstractVector, <:Operator}, y::AbstractVector{<:OnGrid}) 
+    x, A = x_and_A
+    batch_integrate(A, x, y)
+end
+
+function batch_integrate(A::NumericalOperator{T}, x::AbstractVector{<:OnGrid{T}}, y::AbstractVector{<:OnGrid{T}}) where T <: Grid
+    result = zeros(ComplexFxx, (length(x), length(y)))
+    p = Progress(length(x) * length(y))
+    Threads.@threads for (r, c) in collect(Iterators.product(1:length(x), 1:length(y)))
+        result[r, c] = A[x[r], y[c]]
+        next!(p)
+    end
+    return result
+end
 
 # Base.:|(A::Operator, x::Vector{OnGrid}, y::Vector{OnGrid}) = [A[o_1, o_2] for o_1 in x, o_2 in y]
 # Base.:|(A::Operator, x::Vector{OnGrid}, o_2::OnGrid) = [A[o_1, o_2] for o_1 in x]

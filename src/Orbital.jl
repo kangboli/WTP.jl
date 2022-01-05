@@ -28,11 +28,28 @@ i_kpoint!(orbital::AbstractUnkOrbital, i) = orbital.meta[:i_kpoint] = i
 cache(orbital::AbstractUnkOrbital) = haskey(orbital.meta, :cache) ? orbital.meta[:cache] : nothing
 cache!(orbital::AbstractUnkOrbital, c) = orbital.meta[:cache] = c
 
+"""
+    kpoint(orbital)
+
+Get the `kpoint` associated with the `orbital`.
+"""
 kpoint(orbital) = orbital.kpoint
+
+"""
+    kpoint!(orbital, new_kpoint)
+
+Set the kpoint associated with `orbital` to `new_kpoint`.
+"""
 function kpoint!(orbital, new_kpoint::KPoint) 
      orbital.kpoint = new_kpoint
      return orbital
 end
+
+"""
+    index_band(orbital)
+
+Get the index of the band of the `orbital`.
+"""
 index_band(orbital) = orbital.index_band
 
 function braket(o_1::OnGrid, o_2::OnGrid)
@@ -77,10 +94,6 @@ function dagger!(orbital::UnkBasisOrbital)
     orbital.ket = !orbital.ket
 end
 
-function vectorize(o::UnkBasisOrbital)
-    # wfc(o)!==nothing ? wfc(o).evc[:, index_band(o)] : 
-    reshape(elements(o), prod(size(grid(o))))
-end
 
 function resemble(orbital::UnkBasisOrbital{S}, ::Type{T}, new_elements=nothing) where {S <: Grid,  T <: Grid}
     g = grid(orbital)

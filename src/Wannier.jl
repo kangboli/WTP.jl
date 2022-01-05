@@ -7,8 +7,9 @@ export Wannier,
     NeighborIntegral,
     find_neighbors,
     integrals,
-    reciprocal_lattice,
-    gauge_transform
+    orbital_grid,
+    gauge_transform, 
+    phase_factors
 
 """
 The gauge ``U^{k}`` is set of matrices, where each matrix
@@ -49,7 +50,7 @@ end
 gauge(wannier::Wannier) = wannier.gauge
 gauge!(wannier::Wannier, new_gauge::Gauge) = wannier.gauge = new_gauge
 set_gauge(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
-reciprocal_lattice(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
+orbital_grid(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
 
 function init_wannier(grid::BrillouinZone)
     elements = Array{Vector{UnkBasisOrbital{ReciprocalLattice3D}},3}(undef, size(grid))
@@ -60,7 +61,7 @@ function fft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
     g = grid(wannier)
     elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},n_dims(T)}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
-    for k in g
+    Threads.@threads for k in collect(g)
         transformed[k] = fft.(wannier[k])
     end
     return transformed
@@ -76,7 +77,7 @@ function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     g = grid(wannier)
     elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},n_dims(T)}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
-    for k in g
+    Threads.@threads for k in collect(g)
         transformed[k] = ifft.(wannier[k])
     end
     return transformed
@@ -89,6 +90,8 @@ function _ifft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLatti
 end
 
 """
+    outer_orbital(unk, G)
+
 Get an orbital out of the brillouin zone from its copy within the brillouin zone
 through a translation in frequency space.
 
@@ -110,6 +113,40 @@ function Base.getindex(wannier::Wannier, n::Integer, k::KPoint)
 end
 
 """
+    phase_factors(wannier)
+
+Compute the phase factors eⁱᵏˣ for each k on a limited region of the supercell.
+The region is constructing by expanding the homecell by `factors` in each direction.
+"""
+function phase_factors(wannier::Wannier)
+    brillouin_zone = grid(wannier)
+    factors = [s for s in size(brillouin_zone)]
+    g = orbital_grid(wannier)
+    homecell = isa(g, HomeCell) ? g : transform_grid(g)
+    supercell = expand(homecell, factors)
+    return map(brillouin_zone) do k 
+        map(supercell) do r
+            exp(1im * k' * r)
+        end
+    end
+end
+
+function (wannier::Wannier)(n::Integer, phase=nothing)
+    phase === nothing && (phase = phase_factors(wannier))
+    brillouin_zone = grid(wannier)
+    N = length(brillouin_zone)
+
+    return (1/N) * sum(brillouin_zone) do k
+        phase[k] * expand(wannier[n, k] |> UnkBasisOrbital, [s for s in size(brillouin_zone)])
+    end
+end
+
+function (wannier::Wannier)(I::Range, phase=nothing)
+    phase === nothing && (phase = phase_factors(wannier))
+    return [wannier(n, phase) for n in I]
+end
+
+"""
 Indexing a wannier object with a kpoint gives the set of basis 
 orbitals at that kpoint.
 
@@ -126,6 +163,12 @@ function Base.getindex(u::Wannier, k::KPoint)
     return (o -> kpoint!(o, k)).(translated_orbitals)
 end
 
+"""
+The neighbor integrals indexed by two kpoints.
+For each pair of kpoint, the integrals are stored 
+as a matrix. This is the same as the ``M_{mn}^{k, b}``
+matrix in MLWF. The matrix elements are accessed by `M[k, k+b][m, n]`
+"""
 struct NeighborIntegral
     integrals::Dict{Pair{KPoint,KPoint},Matrix{ComplexFxx}}
 end
@@ -156,6 +199,14 @@ function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatr
     end
 end
 
+"""
+    gauge_transform(neighbor_integral, gauge)
+
+Perform a gauge transform on the neighbor integrals.
+
+``U^{k \\dagger} M^{k, k+b} U^{k+b}``
+
+"""
 function gauge_transform(neighbor_integral::NeighborIntegral, gauge::Gauge)
     t = NeighborIntegral()
     for ((k_1, k_2), integral) in integrals(neighbor_integral)
