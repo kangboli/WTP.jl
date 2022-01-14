@@ -14,7 +14,9 @@ export FiniteDifference,
     spread,
     neighbor_basis_integral,
     BranchStable,
-    BranchNaive
+    BranchNaive,
+    ila_gradient,
+    optimize
 
 abstract type FiniteDifference end
 
@@ -136,7 +138,7 @@ function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type
     end
 
     brillouin_zone = collect(grid(scheme))
-    return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
+    return sum(kpoint_contribution.(brillouin_zone)) / length(brillouin_zone)
 end
 
 function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchStable})
@@ -162,7 +164,7 @@ function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
     function kpoint_contribution(k::KPoint)
         sum(zip(weights(scheme), shells(scheme))) do (w, shell)
             sum(shell) do b
-                w * (1 - abs2(M[k, k+b][n, n]) + imag(log(M[k, k+b][n, n]))^2)
+                w * (1 - abs2(M[k, k+b][n, n]) + angle(M[k, k+b][n, n])^2)
             end
         end
     end
@@ -205,8 +207,68 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     return M
 end
 
+function n_band(M::NeighborIntegral)
+    first_matrix = collect(values(integrals(M)))[1]
+    return size(first_matrix, 1)
+end
 
-# extended_brillouin_zone = union(Set{KPoint}([]), (k->find_neighbors(k, scheme)).(brillouin_zone)...)
-# U = hcat((o->reshape(elements(o), prod(size(grid(o))))).(u[k_1])...)
-# V = hcat((o->reshape(elements(o), prod(size(grid(o))))).(u[k_2])...)
-# return [braket(dagger(m), n) for m in u[k_1], n in u[k_2]]
+function ila_gradient(M::NeighborIntegral, scheme::W90FiniteDifference, brillouin_zone::B) where B <: BrillouinZone
+    N = n_band(M)
+    c = (n->center(M, scheme, n)).(1:N)
+    
+    G = k-> sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(shell) do b
+            A = M[k, k+b]
+            q = [angle(A[n, n]) + cartesian(b)' * c[n] for n=1:N]
+            R = hcat([A[:, n] * A[n, n]' for n=1:N]...)
+            T = hcat([(A[:, n] / A[n, n]) * q[n] for n=1:N]...)
+            4w * ((R-R')/2 - (T+T')/2im) / length(brillouin_zone)
+        end
+    end
+
+    return map(G, brillouin_zone)
+end
+
+
+total_spread(M, scheme) = let N = n_band(M)
+    sum(1:N) do n
+        spread(M, scheme, n)
+    end
+end
+
+function optimize(U_0::Gauge, scheme::W90FiniteDifference, brillouin_zone::B, ϵ=1e-7) where B <: BrillouinZone
+    α = 2
+    M_0 = neighbor_basis_integral(scheme)
+    N = n_band(M_0)
+    U = U_0
+    M = gauge_transform(M_0, U)
+    Ω = total_spread(M, scheme)
+
+    function line_search(U, Ω, ∇Ω, ∇Ω²)
+        while true
+            α /= 2
+            Q = Ω - 0.5α * ∇Ω²
+            new_elements = elements(map(k->U[k] * cis(-Hermitian(1im * α * ∇Ω[k])), brillouin_zone))
+            V = Gauge{B}(brillouin_zone, new_elements)
+            M_V = gauge_transform(M_0, V)
+            Ω_V = total_spread(M_V, scheme)
+            println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
+            Ω_V > Q && continue
+            α *= 2
+            return V, M_V, Ω_V
+        end
+    end
+
+    while true
+        ∇Ω = Gauge{B}(brillouin_zone, elements(ila_gradient(M, scheme, brillouin_zone))) 
+        ∇Ω² = sum(brillouin_zone) do k
+            v = reshape(∇Ω[k], N^2)
+            abs(v' * v)
+        end
+        println("∇Ω²: $(∇Ω²)")
+        √∇Ω² <= ϵ && break
+        U, M, Ω = line_search(U, Ω, ∇Ω, ∇Ω²)
+    end
+
+    return U
+end

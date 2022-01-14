@@ -15,15 +15,15 @@ export Wannier,
 The gauge ``U^{k}`` is set of matrices, where each matrix
 corresponds to each k-point.
 """
-struct Gauge <: OnGrid{BrillouinZone}
-    grid::BrillouinZone
+struct Gauge{T<:BrillouinZone} <: OnGrid{T}
+    grid::T
     elements::Array{AbstractMatrix{ComplexFxx}, <:Any}
 end
 
 ket(g::Gauge) = true
 
 Gauge(grid::T) where T <: BrillouinZone = 
-    Gauge(grid, Array{Matrix{ComplexFxx}, n_dims(T)}(undef, size(grid)))
+    Gauge{T}(grid, Array{Matrix{ComplexFxx}, n_dims(T)}(undef, size(grid)))
 
 function Gauge(grid::T, n::Integer) where T <: BrillouinZone 
     U = Gauge(grid)
@@ -31,6 +31,14 @@ function Gauge(grid::T, n::Integer) where T <: BrillouinZone
         U[v] = diagm(ones(ComplexFxx, n))
     end
     return U
+end
+
+function resemble(on_grid::Gauge{S}, ::Type{T}, new_elements=nothing) where {S <: Grid, T <:Grid}
+    g = grid(on_grid)
+    if new_elements === nothing 
+       new_elements = zeros(eltype(elements(on_grid)), size(g))
+    end
+    Gauge{S}(g, new_elements)
 end
 
 Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid, KPoint}, g, reset_overflow(k))

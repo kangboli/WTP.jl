@@ -229,15 +229,15 @@ end
 function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T <: Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
     # ket(o_1) == ket(o_2) || error("Adding bra to ket.")
-    o_3 = resemble(o_2, T)
-    elements!(o_3, elements(o_1) + elements(o_2))
+    o_3 = resemble(o_2, T, elements(o_1) + elements(o_2))
+    # elements!(o_3, )
     # o_3 = set_elements(o_2, elements(o_1) + elements(o_2))
     return o_3
 end
 
 function negate(o_1::OnGrid{T}) where T <: Grid
-    o_2 = resemble(o_1, T)
-    elements!(o_2, -elements(o_1))
+    o_2 = resemble(o_1, T, -elements(o_1))
+    # elements!(o_2, )
     return o_2
 end
 
@@ -255,8 +255,8 @@ function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T <: Grid, S <: Grid}
 end
 
 function mul(scalar::Number, o_1::OnGrid{T}) where T
-    o_2 = resemble(o_1, T)
-    elements!(o_2, scalar * elements(o_1))
+    o_2 = resemble(o_1, T, scalar * elements(o_1))
+    # elements!(o_2, )
     return o_2
 end
 
