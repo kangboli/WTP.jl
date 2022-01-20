@@ -14,6 +14,11 @@ export Wannier,
 """
 The gauge ``U^{k}`` is set of matrices, where each matrix
 corresponds to each k-point.
+
+By convention (from MLWF), each column of the gauge corresponds to the
+coefficients of a transformed ``\\tilde{u}_{n, k}`` orbital. 
+
+`` | \\tilde{u}_{n, k} \\rangle = \\sum_{m} | u_{m, k} \\rangle U^{k}_{m, n} ``
 """
 struct Gauge{T<:BrillouinZone} <: OnGrid{T}
     grid::T
@@ -59,9 +64,15 @@ gauge(wannier::Wannier) = wannier.gauge
 gauge!(wannier::Wannier, new_gauge::Gauge) = wannier.gauge = new_gauge
 set_gauge(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
 orbital_grid(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
+n_band(wannier::Wannier) = length(elements(wannier)[1,1,1])
 
 function init_wannier(grid::BrillouinZone)
     elements = Array{Vector{UnkBasisOrbital{ReciprocalLattice3D}},3}(undef, size(grid))
+    return Wannier(grid, elements, Gauge(grid))
+end
+
+function init_wannier(grid::BrillouinZone, ::Type{T}) where T <: OnGrid
+    elements = Array{Vector{T},3}(undef, size(grid))
     return Wannier(grid, elements, Gauge(grid))
 end
 
@@ -128,15 +139,22 @@ The region is constructing by expanding the homecell by `factors` in each direct
 """
 function phase_factors(wannier::Wannier)
     brillouin_zone = grid(wannier)
-    factors = [s for s in size(brillouin_zone)]
+    factors = [size(brillouin_zone)...]
     g = orbital_grid(wannier)
     homecell = isa(g, HomeCell) ? g : transform_grid(g)
     supercell = expand(homecell, factors)
-    return map(brillouin_zone) do k 
-        map(supercell) do r
-            exp(1im * k' * r)
-        end
-    end
+    k_coordinates = hcat(cartesian.(collect(brillouin_zone))...)
+    r_coordinates = hcat(cartesian.(collect(supercell))...)
+    phase = exp.(1im * r_coordinates' * k_coordinates)
+    SimpleFunctionOnGrid(brillouin_zone, reshape((n ->
+    SimpleFunctionOnGrid(supercell, reshape(phase[:, n], size(supercell)),
+    true)).(1:length(brillouin_zone)), size(brillouin_zone)) ,true)
+
+    # return map(brillouin_zone) do k 
+    #     map(supercell) do r
+    #         exp(1im * k' * r)
+    #     end
+    # end
 end
 
 function (wannier::Wannier)(n::Integer, phase=nothing)
@@ -145,13 +163,39 @@ function (wannier::Wannier)(n::Integer, phase=nothing)
     N = length(brillouin_zone)
 
     return (1/N) * sum(brillouin_zone) do k
-        phase[k] * expand(wannier[n, k] |> UnkBasisOrbital, [s for s in size(brillouin_zone)])
+        phase[k] * expand(wannier[n, k] |> UnkBasisOrbital, [size(brillouin_zone)...])
     end
 end
 
 function (wannier::Wannier)(I::Range, phase=nothing)
     phase === nothing && (phase = phase_factors(wannier))
     return [wannier(n, phase) for n in I]
+end
+
+function (u::Wannier)(::Colon, phase=nothing)
+    phase === nothing && (phase = phase_factors(u))
+    brillouin_zone = grid(u)
+    N = length(brillouin_zone)
+    transformed = init_wannier(brillouin_zone, UnkBasisOrbital{HomeCell3D})
+    U = gauge(u)
+
+    function transform(k)
+        Ψ = hcat(vectorize.(u[k])...)
+        Ψ = Ψ * U[k]
+        return [UnkBasisOrbital(orbital_grid(u), c, k, n) for (n, c) in enumerate(eachcol(Ψ))]
+    end
+
+    for k in brillouin_zone
+        transformed[k] = transform(k)
+    end
+
+    function bloch_orbital_sum(n) 
+        (1/N) * sum(brillouin_zone) do k
+            phase[k] * expand(u[k][n], [size(brillouin_zone)...])
+        end
+    end
+    
+    return bloch_orbital_sum.(1:n_band(u))
 end
 
 """
