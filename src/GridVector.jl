@@ -16,12 +16,17 @@ grid(grid_vector::AbstractGridVector) = grid_vector.grid
 grid!(grid_vector::AbstractGridVector, new_grid) = grid_vector.grid = new_grid
 
 """
+    wrapped(grid_vector)
+
 The grid vector modulo the domain of the grid.
 
 For grid vectors within the grid domain, this just gives the _coefficients.
 For those outside the grid domain, this move the vector by multiples of 
 the grid domain to bring it into the grid domain.
 """
+# wrapped(grid_vector::AbstractGridVector) = 
+#     coefficients(grid_vector) + overflow(grid_vector) .* [size(grid(grid_vector))...]
+
 wrapped(grid_vector::AbstractGridVector) = [
     mod((c - l), r - l + 1) + l for
     (c, (l, r)) in zip(coefficients(grid_vector), domain(grid(grid_vector)))

@@ -16,7 +16,7 @@ export FiniteDifference,
     BranchStable,
     BranchNaive,
     ila_gradient,
-    optimize
+    ILAOptimizer
 
 abstract type FiniteDifference end
 
@@ -212,7 +212,8 @@ function n_band(M::NeighborIntegral)
     return size(first_matrix, 1)
 end
 
-function ila_gradient(M::NeighborIntegral, scheme::W90FiniteDifference, brillouin_zone::B) where B <: BrillouinZone
+function ila_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::B) where B <: BrillouinZone
+    M = gauge_transform(neighbor_basis_integral(scheme), U)
     N = n_band(M)
     c = (n->center(M, scheme, n)).(1:N)
     
@@ -230,45 +231,116 @@ function ila_gradient(M::NeighborIntegral, scheme::W90FiniteDifference, brilloui
 end
 
 
-total_spread(M, scheme) = let N = n_band(M)
-    sum(1:N) do n
+function all_spread(U, scheme) 
+    M = gauge_transform(neighbor_basis_integral(scheme), U)
+    N = n_band(M)
+    return map(1:N) do n
         spread(M, scheme, n)
     end
 end
 
-function optimize(U_0::Gauge, scheme::W90FiniteDifference, brillouin_zone::B, ϵ=1e-7) where B <: BrillouinZone
-    α = 2
-    M_0 = neighbor_basis_integral(scheme)
-    N = n_band(M_0)
-    U = U_0
-    M = gauge_transform(M_0, U)
-    Ω = total_spread(M, scheme)
+function all_center(U, scheme) 
+    M = gauge_transform(neighbor_basis_integral(scheme), U)
+    N = n_band(M)
+    return map(1:N) do n
+        center(M, scheme, n)
+    end
+end
 
-    function line_search(U, Ω, ∇Ω, ∇Ω²)
-        while true
-            α /= 2
-            Q = Ω - 0.5α * ∇Ω²
-            new_elements = elements(map(k->U[k] * cis(-Hermitian(1im * α * ∇Ω[k])), brillouin_zone))
-            V = Gauge{B}(brillouin_zone, new_elements)
-            M_V = gauge_transform(M_0, V)
-            Ω_V = total_spread(M_V, scheme)
-            println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
-            Ω_V > Q && continue
-            α *= 2
-            return V, M_V, Ω_V
-        end
+function line_search(U, f, ∇f, ∇f², α; α_0=2)
+    brillouin_zone = grid(U) 
+    Ω = f(U)
+    ∇Ω = ∇f(U)
+    ∇Ω² = ∇f²(∇Ω)
+
+    # println("Ω: $(Ω)"); println("∇Ω²: $(∇Ω²)"); println("α: $(α)");
+    # println()
+
+    function try_step(α)
+        Q = Ω - 0.5α * ∇Ω²
+        new_elements = elements(map(k->U[k] * cis(-Hermitian(1im * α * ∇Ω[k])), brillouin_zone))
+        V = Gauge{typeof(brillouin_zone)}(brillouin_zone, new_elements)
+        Ω_V = f(V)
+        return V, Ω_V, Q
     end
 
     while true
-        ∇Ω = Gauge{B}(brillouin_zone, elements(ila_gradient(M, scheme, brillouin_zone))) 
-        ∇Ω² = sum(brillouin_zone) do k
-            v = reshape(∇Ω[k], N^2)
-            abs(v' * v)
-        end
-        println("∇Ω²: $(∇Ω²)")
-        √∇Ω² <= ϵ && break
-        U, M, Ω = line_search(U, Ω, ∇Ω, ∇Ω²)
-    end
+        V, Ω_V, Q = try_step(α)
 
+        discontinuous = ∇Ω² > 1e-7 && α < 1e-3
+        discontinuous && return let α = α_0, (V, Ω_V, _) = try_step(α);
+            println("Discontinuous!"); println()
+            V, Ω_V, α, ∇Ω²
+        end
+        # println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
+        # println()
+        Ω_V > Q || return V, Ω_V, α, ∇Ω²
+        α /= 2 
+    end
+end
+
+struct ILAOptimizer
+    scheme::W90FiniteDifference
+    meta::Dict
+    ILAOptimizer(scheme::W90FiniteDifference) = new(scheme, Dict())
+end
+scheme(optimizer::ILAOptimizer) = optimizer.scheme
+
+function (optimizer::ILAOptimizer)(U_0::Gauge; n_iteration=Inf, α_0=2) 
+    N = optimizer |> scheme |> neighbor_basis_integral |> n_band
+    U = U_0
+    brillouin_zone = grid(U)
+    f = U -> sum(all_spread(U, scheme(optimizer)))
+    ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(ila_gradient(U, scheme(optimizer), brillouin_zone))) 
+    ∇f² = ∇f -> sum(brillouin_zone) do k
+            v = reshape(∇f[k], N^2)
+            abs(v' * v)
+    end
+    α = α_0
+
+    current_iteration = -1
+    while n_iteration > current_iteration
+        current_iteration += 1
+        U, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², 2α, α_0=α_0)
+        ∇Ω² < 1e-7 && break
+
+        append!(optimizer.meta[:ila_spread], [all_spread(U, scheme(optimizer))])
+        mod(current_iteration, 10) == 0 || continue
+
+        println("Ω: $(Ω)"); println("∇Ω²: $(∇Ω²)"); println("α: $(α)");
+        u = set_gauge(optimizer.meta[:u], U)
+        wannier_orbitals = u(:, optimizer.meta[:phase])
+        densities = abs2.(wannier_orbitals)
+        # σ_total = 0
+        # println("Convolutional: $(σ_total)")
+        # @printf "ILA        : %.3f  %.3f  %.3f  %.3f\n" ...
+        # @printf "Convolution: "
+        center_difference = zeros(N)
+        convolutional_spread = zeros(N)
+        ila_centers = all_center(U, scheme(optimizer))
+        for i in 1:length(densities)
+            ρ = densities[i]
+            c, σ = center_spread(fft(ρ, false), optimizer.meta[:r̃2])
+            center_difference[i] = norm(c - ila_centers[i])
+            convolutional_spread[i] = σ
+            # @printf "%.3f  " σ
+            # σ_total += σ
+        end
+
+        append!(optimizer.meta[:center_difference], [center_difference])
+        append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
+        println()
+
+    end
+    println(current_iteration)
     return U
 end
+
+
+# if n_iteration == 0
+#     for α = -1e-1:5e-3:1e-1
+#         _, _, omega, _ = try_step(α)
+#         @printf "%.3f  " omega
+#     end
+#     println()
+# end

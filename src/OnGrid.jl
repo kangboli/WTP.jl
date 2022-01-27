@@ -20,7 +20,9 @@ export OnGrid,
     wtp_normalize!,
     wtp_sparse,
     wtp_sparse!,
-    expand
+    expand,
+    center_spread,
+    efficient_r2
 
 """
 A function defined on a grid. 
@@ -74,8 +76,8 @@ end
 function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:AbstractGridVector})
     # TODO: Implement error checking.
     offsets = translation(on_grid)
-    index_array = (v->miller_to_standard(v, offsets)).(grid_vector_array)
-    return (I->element(on_grid, I...)).(index_array)
+    index_array = (v -> miller_to_standard(v, offsets)).(grid_vector_array)
+    return (I -> element(on_grid, I...)).(index_array)
 end
 
 function Base.setindex!(on_grid::OnGrid, value, grid_vector::AbstractGridVector)
@@ -88,8 +90,8 @@ end
 
 function Base.setindex!(on_grid::OnGrid, value_array::AbstractArray, grid_vector_array::AbstractArray{<:AbstractGridVector})
     offsets = translation(on_grid)
-    index_array = (v->miller_to_standard(v, offsets)).(grid_vector_array)
-    map((v, i)->element!(on_grid, v, i...), value_array, index_array)
+    index_array = (v -> miller_to_standard(v, offsets)).(grid_vector_array)
+    map((v, i) -> element!(on_grid, v, i...), value_array, index_array)
 end
 
 """
@@ -125,9 +127,10 @@ end
 The translation of an OnGrid object is the center of the underlying grid as a
 grid vector. 
 """
-translation(on_grid::OnGrid) = let g = grid(on_grid)
-    grid_vector_constructor(g, center(g))
-end
+translation(on_grid::OnGrid) =
+    let g = grid(on_grid)
+        grid_vector_constructor(g, center(g))
+    end
 
 """
     wtp_normalize(on_grid)
@@ -152,10 +155,10 @@ function wtp_normalize!(on_grid::OnGrid)
 end
 
 function wtp_sparse(on_grid::OnGrid)
-    @set on_grid.elements = reshape(sparsevec(elements(on_grid)), size(elements(on_grid))... )
+    @set on_grid.elements = reshape(sparsevec(elements(on_grid)), size(elements(on_grid))...)
 end
 function wtp_sparse!(on_grid::OnGrid)
-    elements!(on_grid, reshape(sparsevec(elements(on_grid)), size(elements(on_grid))... ))
+    elements!(on_grid, reshape(sparsevec(elements(on_grid)), size(elements(on_grid))...))
 end
 
 """
@@ -177,11 +180,11 @@ function standardize(orbital::OnGrid)
     return new_orbital
 end
 
-function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<: Number})
+function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<:Number})
     standardize(translate(on_grid, grid(on_grid)[translation...]))
 end
 
-function Base.:(>>)(on_grid::OnGrid{S}, grid_vector::AbstractGridVector{S}) where S
+function Base.:(>>)(on_grid::OnGrid{S}, grid_vector::AbstractGridVector{S}) where {S}
     on_grid >> coefficients(grid_vector)
 end
 
@@ -209,7 +212,7 @@ This syntax is very simple and expressive, but keep in mind that this involves
 compiling an anonymous function for each map, which costs as much as the mapping
 it self. 
 """
-function Base.map(f::Function, grid::T) where T <: Grid
+function Base.map(f::Function, grid::T) where {T<:Grid}
     grid_vectors = array(grid)
     raw_elements = Folds.map(f, grid_vectors, ThreadedEx())
     shifted_elements = circshift(raw_elements, mins(grid))
@@ -217,16 +220,16 @@ function Base.map(f::Function, grid::T) where T <: Grid
     return result
 end
 
-function resemble(on_grid::SimpleFunctionOnGrid{S}, ::Type{T}, new_elements=nothing) where {S <: Grid, T <:Grid}
+function resemble(on_grid::SimpleFunctionOnGrid{S}, ::Type{T}, new_elements = nothing) where {S<:Grid,T<:Grid}
     g = grid(on_grid)
     S == dual_grid(T) && (g = transform_grid(g))
-    if new_elements === nothing 
-       new_elements = zeros(eltype(elements(on_grid)), size(g))
+    if new_elements === nothing
+        new_elements = zeros(eltype(elements(on_grid)), size(g))
     end
     SimpleFunctionOnGrid(g, new_elements, ket(on_grid))
 end
 
-function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T <: Grid}
+function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T<:Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
     # ket(o_1) == ket(o_2) || error("Adding bra to ket.")
     o_3 = resemble(o_2, T, elements(o_1) + elements(o_2))
@@ -235,7 +238,7 @@ function add(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T <: Grid}
     return o_3
 end
 
-function negate(o_1::OnGrid{T}) where T <: Grid
+function negate(o_1::OnGrid{T}) where {T<:Grid}
     o_2 = resemble(o_1, T, -elements(o_1))
     # elements!(o_2, )
     return o_2
@@ -245,7 +248,7 @@ function minus(o_1::OnGrid, o_2::OnGrid)
     add(o_1, negate(o_2))
 end
 
-function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T <: Grid, S <: Grid}
+function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T<:Grid,S<:Grid}
     grid(o_1) == grid(o_2) || error("Mismatching Grids.")
     ket(o_1) == ket(o_2) || error("elementwise product cannot take a bra and a ket.")
     # o_3 = resemble(o_2, S)
@@ -254,13 +257,13 @@ function mul(o_1::OnGrid{T}, o_2::OnGrid{S}) where {T <: Grid, S <: Grid}
     return o_3
 end
 
-function mul(scalar::Number, o_1::OnGrid{T}) where T
+function mul(scalar::Number, o_1::OnGrid{T}) where {T}
     o_2 = resemble(o_1, T, scalar * elements(o_1))
     # elements!(o_2, )
     return o_2
 end
 
-function Base.abs2(o_1::OnGrid{T}) where T
+function Base.abs2(o_1::OnGrid{T}) where {T}
     o_2 = resemble(o_1, T, abs2.(elements(o_1)))
     return o_2
 end
@@ -282,9 +285,10 @@ Base.adjoint(o_1::OnGrid) = dagger(o_1)
 
 Fast Fourier Transform of an `OnGrid` object.
 """
-function fft(on_grid::OnGrid{T}) where T <: HomeCell
+function fft(on_grid::OnGrid{T}, normalize = true) where {T<:HomeCell}
     new_elements = FFTW.fft(elements(on_grid))
-    return resemble(on_grid, dual_grid(T), new_elements) |> wtp_normalize!
+    unnormalized = resemble(on_grid, dual_grid(T), new_elements)
+    return normalize ? unnormalized |> wtp_normalize! : unnormalized
 end
 
 """
@@ -296,9 +300,10 @@ in an invalid state. Use `@fft!` instead to set `on_grid` to `nothing`.
 In place Fast Fourier Transform (FFT) of an `OnGrid` object.
 The memory of the argument will be repurposed for its FFT.
 """
-function _fft!(on_grid::OnGrid{T}) where T <: HomeCell 
+function _fft!(on_grid::OnGrid{T}, normalize = true) where {T<:HomeCell}
     FFTW.fft!(elements(on_grid))
-    return resemble(on_grid, dual_grid(T), elements(on_grid)) |> wtp_normalize!
+    unnormalized = resemble(on_grid, dual_grid(T), elements(on_grid))
+    return normalize ? unnormalized |> wtp_normalize! : unnormalized
 end
 
 """
@@ -309,11 +314,11 @@ Perform a in-place Fourier Transform.
 """
 macro fft!(real_orbital)
     esc(Expr(:block, Expr(
-        :(=), :reciprocal_orbital,
-        Expr(:call, Expr(Symbol("."), :WTP, QuoteNode(:_fft!,)), real_orbital)
-    ),
-    Expr(:(=), real_orbital, :nothing),
-    :reciprocal_orbital))
+            :(=), :reciprocal_orbital,
+            Expr(:call, Expr(Symbol("."), :WTP, QuoteNode(:_fft!,)), real_orbital)
+        ),
+        Expr(:(=), real_orbital, :nothing),
+        :reciprocal_orbital))
 end
 
 """
@@ -322,9 +327,10 @@ end
 Inverse Fast Fourier Transform of an `OnGrid` object.
 The memory of the argument will be repurposed for its FFT.
 """
-function ifft(on_grid::OnGrid{T}) where T <: ReciprocalLattice
+function ifft(on_grid::OnGrid{T}, normalize = true) where {T<:ReciprocalLattice}
     new_elements = FFTW.ifft(elements(on_grid))
-    return resemble(on_grid, dual_grid(T), new_elements) |> wtp_normalize!
+    unnormalized = resemble(on_grid, dual_grid(T), new_elements)
+    return normalize ? unnormalized |> wtp_normalize! : unnormalized
 end
 
 """
@@ -335,9 +341,10 @@ in an invalid state. Use `@ifft!` instead to set `on_grid` to `nothing`.
 
 In place Inverse Fast Fourier Transform of an `OnGrid` object.
 """
-function _ifft!(on_grid::OnGrid{T}) where T <: ReciprocalLattice
+function _ifft!(on_grid::OnGrid{T}, normalize = true) where {T<:ReciprocalLattice}
     FFTW.ifft!(elements(on_grid))
-    on_grid = resemble(on_grid, dual_grid(T), elements(on_grid)) |> wtp_normalize!
+    unnormalized = resemble(on_grid, dual_grid(T), elements(on_grid))
+    return normalize ? unnormalized |> wtp_normalize! : unnormalized
 end
 
 """
@@ -346,12 +353,13 @@ end
 Perform a in-place inverse Fourier Transform. 
 `reciprocal_orbital` will be set to `nothing`
 """
-macro ifft!(reciprocal_orbital) esc(Expr(:block, Expr(
-        :(=), :real_orbital,
-        Expr(:call, Expr(Symbol("."), :WTP, QuoteNode(:_ifft!,)), reciprocal_orbital)
-    ),
-    Expr(:(=), reciprocal_orbital, :nothing),
-    :real_orbital))
+macro ifft!(reciprocal_orbital)
+    esc(Expr(:block, Expr(
+            :(=), :real_orbital,
+            Expr(:call, Expr(Symbol("."), :WTP, QuoteNode(:_ifft!,)), reciprocal_orbital)
+        ),
+        Expr(:(=), reciprocal_orbital, :nothing),
+        :real_orbital))
 end
 
 function html(on_grid::OnGrid)
@@ -369,7 +377,7 @@ Base.show(io::IO, ::MIME"text/html", on_grid::OnGrid) = println(io, html(on_grid
 
 Expand (copy) an `OnGrid` object by `factors` along the respective directions.
 """
-function expand(on_grid::OnGrid, factors=[2, 2, 2])
+function expand(on_grid::OnGrid, factors = [2, 2, 2])
     new_elements = repeat(elements(on_grid), factors...)
     new_on_grid = set_elements(on_grid, new_elements)
     new_grid = expand(grid(on_grid), factors)
@@ -379,4 +387,52 @@ end
 function vectorize(o::OnGrid)
     # wfc(o)!==nothing ? wfc(o).evc[:, index_band(o)] : 
     reshape(elements(o), prod(size(grid(o))))
+end
+
+"""
+Compute the center and the spread. Here, `õ` should generally be 
+fft of the density (instead of the orbital).
+"""
+function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLattice}
+    convolved = ifft(õ * r̃2, false)
+    elements!(convolved, abs.(elements(convolved)))
+    index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
+    r_min = grid(convolved)(index_min)
+    # return r_min, convolved[r_min]
+    return quadratic_fit(convolved, r_min)
+end
+
+# function efficient_r2(g::HomeCell)
+#     r_coordinates = cartesian.(g(1:length(g)))
+#     r2 = norm.(r_coordinates)
+#     return SimpleFunctionOnGrid(g, reshape(r2, size(g)...), true)
+# end
+
+
+"""
+A seven-points fitting method for the convolution. 
+
+f(r) = (r-b)ᵀ D (r - b) + c
+
+D is diagonal because r² = x² + y² + z² is additively separable.
+This is:
+
+ c + ∑ᵢ₌₁³ bᵢ² dᵢ - 2 bᵢ dᵢ rᵢ + dᵢ rᵢ² = y
+
+[1, rᵢ, rᵢ²] [c + ∑ bᵢ² dᵢ, -2 bᵢ dᵢ, dᵢ]' = y
+"""
+function quadratic_fit(o::OnGrid{T}, fitting_center::GridVector{T}) where {T<:Grid}
+    g = grid(o)
+    fitting_points = reset_overflow.((v -> fitting_center + v).([
+        g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
+        g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]]))
+
+    A = vcat(map(r -> [1, cartesian(r)..., (cartesian(r) .^ 2)...]', fitting_points)...)
+    rhs = o[fitting_points]
+
+    solution = A \ rhs
+    d = solution[5:7]
+    b = solution[2:4] ./ (-2d)
+    minima = [1, b..., (b .^ 2)...]' * solution
+    return b, minima
 end

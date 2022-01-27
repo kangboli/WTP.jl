@@ -1,7 +1,7 @@
 
 ## Load the wave function.
 
-wave_functions_list = wave_functions_from_directory(joinpath(test_4_dir, "si.save"))
+wave_functions_list = wave_functions_from_directory(joinpath(test_5_dir, "si.save"))
 wannier = wannier_from_save(wave_functions_list);
 
 brillouin_zone = grid(wannier)
@@ -13,7 +13,7 @@ k_map, _ = i_kpoint_map(wave_functions_list)
 
 ## Load the gauge transform amn and verify it.
 
-amn = AMN(joinpath(test_2_dir, "output/pw2wan/si.amn"))
+amn = AMN(joinpath(test_5_dir, "output/pw2wan/si.amn"))
 U = Gauge(grid(wannier), amn, k_map)
 
 ## Construct the scheme.
@@ -54,4 +54,42 @@ isapprox(G[Γ][1, 18], -9.01619251990430984E-003 + -7.49463872737146826E-003im, 
 isapprox(G[Γ][1, 19], 1.57189623177843470E-002 + 2.17366479667984377E-002im, atol=1e-7)
 isapprox(G[Γ][1, 20], -2.74432369706255758E-002 + 1.36648862450632139E-002im, atol=1e-7)
 
-optimize(U, scheme, brillouin_zone)
+optimizer = ILAOptimizer(scheme)
+
+u = ifft(wannier)
+phase = phase_factors(u)
+supercell = expand(orbital_grid(u), [size(brillouin_zone)...])
+r2 = map(supercell) do r
+    norm(r)^2
+end
+r̃2 = fft(r2, false)
+
+optimizer.meta[:r̃2] = r̃2
+optimizer.meta[:u] = u
+optimizer.meta[:phase] = phase
+optimizer.meta[:ila_spread] = Vector{Vector{Float64}}()
+optimizer.meta[:convolutional_spread] = Vector{Vector{Float64}}()
+optimizer.meta[:center_difference] = Vector{Vector{Float64}}()
+optimizer(U);
+
+hcat(optimizer.meta[:ila_spread]...)
+
+u = set_gauge(u, U)
+wannier_orbitals = u(:, phase);
+densities = abs2.(wannier_orbitals)
+σ_total = 0
+
+# center_spread(fft(densities[1], false), r̃2)
+for ρ in densities
+    c, σ = center_spread(fft(ρ, false), r̃2)
+    println(c)
+    println(σ)
+    σ_total += σ
+end
+println(σ_total)
+
+spread(M, scheme, 1)
+spread(M, scheme, 2)
+center(M, scheme, 2)
+spread(M, scheme, 3)
+spread(M, scheme, 4)

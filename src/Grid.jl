@@ -1,7 +1,7 @@
 export Grid, domain, domain!, basis, dual_grid,
     HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
     x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
-    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid
+    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink
 
 """
 Non-orthogonal 3D periodic grid that comply to the centering convention.
@@ -51,6 +51,14 @@ z_max(grid::Grid) = domain(grid)[3][2]
 function expand(grid::Grid, factors = [2, 2, 2])
     return set_domain(grid, size_to_domain(factors .* size(grid)))
 end
+
+# function shrink(grid::Grid, factors = [2, 2, 2])
+#     function shrink_one_dim(s, factor) 
+#         make_even(x) = isodd(x) ? x+1 : x 
+#         return make_even(s ÷ factor)
+#     end
+#     return set_domain(grid, size_to_domain(map(shrink_one_dim, size(grid), factors)))
+# end
 
 """
     mins(grid::Grid)

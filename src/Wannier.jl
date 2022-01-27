@@ -143,8 +143,8 @@ function phase_factors(wannier::Wannier)
     g = orbital_grid(wannier)
     homecell = isa(g, HomeCell) ? g : transform_grid(g)
     supercell = expand(homecell, factors)
-    k_coordinates = hcat(cartesian.(collect(brillouin_zone))...)
-    r_coordinates = hcat(cartesian.(collect(supercell))...)
+    k_coordinates = hcat(cartesian.(brillouin_zone(1:length(brillouin_zone)))...)
+    r_coordinates = hcat(cartesian.(supercell(1:length(supercell)))...)
     phase = exp.(1im * r_coordinates' * k_coordinates)
     SimpleFunctionOnGrid(brillouin_zone, reshape((n ->
     SimpleFunctionOnGrid(supercell, reshape(phase[:, n], size(supercell)),
@@ -182,7 +182,8 @@ function (u::Wannier)(::Colon, phase=nothing)
     function transform(k)
         Ψ = hcat(vectorize.(u[k])...)
         Ψ = Ψ * U[k]
-        return [UnkBasisOrbital(orbital_grid(u), c, k, n) for (n, c) in enumerate(eachcol(Ψ))]
+        g = orbital_grid(u)
+        return [UnkBasisOrbital(g, reshape(c, size(g)...), k, n) for (n, c) in enumerate(eachcol(Ψ))]
     end
 
     for k in brillouin_zone
@@ -191,7 +192,8 @@ function (u::Wannier)(::Colon, phase=nothing)
 
     function bloch_orbital_sum(n) 
         (1/N) * sum(brillouin_zone) do k
-            phase[k] * expand(u[k][n], [size(brillouin_zone)...])
+            expanded = expand(transformed[k][n], [size(brillouin_zone)...])
+            phase[k] * expanded
         end
     end
     
