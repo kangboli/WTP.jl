@@ -66,30 +66,30 @@ Indexing an OnGrid object with a grid vector gives the
 element on the corresponding grid point.
 """
 function Base.getindex(on_grid::OnGrid, grid_vector::AbstractGridVector)
-    !has_overflow(grid_vector) || error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
+    overflow_detection && has_overflow(grid_vector) && error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
-    offsets = translation(on_grid)
+    offsets = center(grid(on_grid))
     indices = miller_to_standard(grid_vector, offsets)
     return element(on_grid, indices...)
 end
 
 function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:AbstractGridVector})
     # TODO: Implement error checking.
-    offsets = translation(on_grid)
+    offsets = center(grid(on_grid))
     index_array = (v -> miller_to_standard(v, offsets)).(grid_vector_array)
     return (I -> element(on_grid, I...)).(index_array)
 end
 
 function Base.setindex!(on_grid::OnGrid, value, grid_vector::AbstractGridVector)
-    !has_overflow(grid_vector) || error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
+    overflow_detection && has_overflow(grid_vector) && error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
-    offsets = translation(on_grid)
+    offsets = center(grid(on_grid))
     indices = miller_to_standard(grid_vector, offsets)
     element!(on_grid, value, indices...)
 end
 
 function Base.setindex!(on_grid::OnGrid, value_array::AbstractArray, grid_vector_array::AbstractArray{<:AbstractGridVector})
-    offsets = translation(on_grid)
+    offsets = center(grid(on_grid))
     index_array = (v -> miller_to_standard(v, offsets)).(grid_vector_array)
     map((v, i) -> element!(on_grid, v, i...), value_array, index_array)
 end
@@ -379,8 +379,11 @@ Expand (copy) an `OnGrid` object by `factors` along the respective directions.
 """
 function expand(on_grid::OnGrid, factors = [2, 2, 2])
     new_elements = repeat(elements(on_grid), factors...)
+    g = grid(on_grid)
+    # shift_amount = map((f, s)->isodd(f) ? 0 : -(s÷2), factors, size(g))
+    # new_elements = circshift(new_elements, shift_amount)
     new_on_grid = set_elements(on_grid, new_elements)
-    new_grid = expand(grid(on_grid), factors)
+    new_grid = expand(g, factors)
     return set_grid(new_on_grid, new_grid)
 end
 

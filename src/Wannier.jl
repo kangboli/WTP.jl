@@ -8,7 +8,7 @@ export Wannier,
     find_neighbors,
     integrals,
     orbital_grid,
-    gauge_transform, 
+    gauge_transform,
     phase_factors
 
 """
@@ -22,61 +22,65 @@ coefficients of a transformed ``\\tilde{u}_{n, k}`` orbital.
 """
 struct Gauge{T<:BrillouinZone} <: OnGrid{T}
     grid::T
-    elements::Array{AbstractMatrix{ComplexFxx}, <:Any}
+    elements::Array{AbstractMatrix{ComplexFxx},<:Any}
 end
 
 ket(g::Gauge) = true
 
-Gauge(grid::T) where T <: BrillouinZone = 
-    Gauge{T}(grid, Array{Matrix{ComplexFxx}, n_dims(T)}(undef, size(grid)))
+Gauge(grid::T) where {T<:BrillouinZone} =
+    Gauge{T}(grid, Array{Matrix{ComplexFxx},n_dims(T)}(undef, size(grid)))
 
-function Gauge(grid::T, n::Integer) where T <: BrillouinZone 
+function Gauge(grid::T, n::Integer) where {T<:BrillouinZone}
     U = Gauge(grid)
-    for v in grid
-        U[v] = diagm(ones(ComplexFxx, n))
-    end
+    reset_gauge!(U, n)
     return U
 end
 
-function resemble(on_grid::Gauge{S}, ::Type{T}, new_elements=nothing) where {S <: Grid, T <:Grid}
+function reset_gauge!(U::Gauge, n::Integer) 
+    for v in grid(U)
+        U[v] = diagm(ones(ComplexFxx, n))
+    end
+end
+
+function resemble(on_grid::Gauge{S}, ::Type{T}, new_elements = nothing) where {S<:Grid,T<:Grid}
     g = grid(on_grid)
-    if new_elements === nothing 
-       new_elements = zeros(eltype(elements(on_grid)), size(g))
+    if new_elements === nothing
+        new_elements = zeros(eltype(elements(on_grid)), size(g))
     end
     Gauge{S}(g, new_elements)
 end
 
-Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid, KPoint}, g, reset_overflow(k))
-Base.setindex!(g::Gauge, value, k::KPoint) = invoke(setindex!, Tuple{OnGrid, Any, KPoint}, g, value, reset_overflow(k))
+Base.getindex(g::Gauge, k::KPoint) = invoke(getindex, Tuple{OnGrid,KPoint}, g, reset_overflow(k))
+Base.setindex!(g::Gauge, value, k::KPoint) = invoke(setindex!, Tuple{OnGrid,Any,KPoint}, g, value, reset_overflow(k))
 
 """
 Wannier is the collection of ``u_{nk}`` orbitals together with a gauge. 
 
 Indexing a wannier with a k-point gives a set of basis functions for the bands at that k-point.
 """
-struct Wannier{T <: OnGrid} <: OnGrid{BrillouinZone}
+struct Wannier{T<:OnGrid} <: OnGrid{BrillouinZone}
     grid::BrillouinZone
-    elements::Array{<:AbstractVector{T}, <:Any}
+    elements::Array{<:AbstractVector{T},<:Any}
     gauge::Gauge
 end
 
 gauge(wannier::Wannier) = wannier.gauge
 gauge!(wannier::Wannier, new_gauge::Gauge) = wannier.gauge = new_gauge
 set_gauge(wannier::Wannier, new_gauge::Gauge) = @set wannier.gauge = new_gauge
-orbital_grid(wannier::Wannier) = grid(elements(wannier)[1,1,1][1])
-n_band(wannier::Wannier) = length(elements(wannier)[1,1,1])
+orbital_grid(wannier::Wannier) = grid(elements(wannier)[1, 1, 1][1])
+n_band(wannier::Wannier) = length(elements(wannier)[1, 1, 1])
 
 function init_wannier(grid::BrillouinZone)
     elements = Array{Vector{UnkBasisOrbital{ReciprocalLattice3D}},3}(undef, size(grid))
     return Wannier(grid, elements, Gauge(grid))
 end
 
-function init_wannier(grid::BrillouinZone, ::Type{T}) where T <: OnGrid
+function init_wannier(grid::BrillouinZone, ::Type{T}) where {T<:OnGrid}
     elements = Array{Vector{T},3}(undef, size(grid))
     return Wannier(grid, elements, Gauge(grid))
 end
 
-function fft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
+function fft(wannier::Wannier{UnkBasisOrbital{T}}) where {T<:HomeCell}
     g = grid(wannier)
     elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},n_dims(T)}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
@@ -86,13 +90,13 @@ function fft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
     return transformed
 end
 
-function _fft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: HomeCell
-    Wannier(grid(wannier), 
-    elements(map(k->_fft!.(wannier[k]), grid(wannier))),
-    gauge(wannier))
+function _fft!(wannier::Wannier{UnkBasisOrbital{T}}) where {T<:HomeCell}
+    Wannier(grid(wannier),
+        elements(map(k -> _fft!.(wannier[k]), grid(wannier))),
+        gauge(wannier))
 end
 
-function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
+function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where {T<:ReciprocalLattice}
     g = grid(wannier)
     elements = Array{Vector{UnkBasisOrbital{dual_grid(T)}},n_dims(T)}(undef, size(g))
     transformed = Wannier(g, elements, gauge(wannier))
@@ -102,10 +106,10 @@ function ifft(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
     return transformed
 end
 
-function _ifft!(wannier::Wannier{UnkBasisOrbital{T}}) where T <: ReciprocalLattice
-    Wannier(grid(wannier), 
-    elements(map(k->_ifft!.(wannier[k]), grid(wannier))),
-    gauge(wannier))
+function _ifft!(wannier::Wannier{UnkBasisOrbital{T}}) where {T<:ReciprocalLattice}
+    Wannier(grid(wannier),
+        elements(map(k -> _ifft!.(wannier[k]), grid(wannier))),
+        gauge(wannier))
 end
 
 """
@@ -145,10 +149,10 @@ function phase_factors(wannier::Wannier)
     supercell = expand(homecell, factors)
     k_coordinates = hcat(cartesian.(brillouin_zone(1:length(brillouin_zone)))...)
     r_coordinates = hcat(cartesian.(supercell(1:length(supercell)))...)
-    phase = exp.(1im * r_coordinates' * k_coordinates)
-    SimpleFunctionOnGrid(brillouin_zone, reshape((n ->
-    SimpleFunctionOnGrid(supercell, reshape(phase[:, n], size(supercell)),
-    true)).(1:length(brillouin_zone)), size(brillouin_zone)) ,true)
+    @time phase = exp.((1im * r_coordinates)' * k_coordinates)
+    @time SimpleFunctionOnGrid(brillouin_zone, reshape((n ->
+                SimpleFunctionOnGrid(supercell, reshape(phase[:, n], size(supercell)),
+                    true)).(1:length(brillouin_zone)), size(brillouin_zone)), true)
 
     # return map(brillouin_zone) do k 
     #     map(supercell) do r
@@ -157,47 +161,72 @@ function phase_factors(wannier::Wannier)
     # end
 end
 
-function (wannier::Wannier)(n::Integer, phase=nothing)
+function commit_gauge!(u::Wannier)
+    brillouin_zone = grid(u)
+    g = orbital_grid(u)
+    tmp = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
+    function transform!(k)
+        Ψ = hcat(vectorize.(u[k])...)
+        Ψ = Ψ * gauge(u)[k]
+        for (n, c) in enumerate(eachcol(Ψ))
+            elements!(u[k][n], reshape(c, size(g)))
+        end
+        # return [UnkBasisOrbital(reciprocal_lattice, reshape(c, size(reciprocal_lattice)...), k, n) for (n, c) in enumerate(eachcol(Ψ))]
+    end
+
+    Threads.@threads for k in collect(brillouin_zone)
+        transform!(k)
+    end
+    reset_gauge!(gauge(u), n_band(u))
+    BLAS.set_num_threads(tmp)
+    return u
+end
+
+function (wannier::Wannier)(n::Integer, phase = nothing)
     phase === nothing && (phase = phase_factors(wannier))
     brillouin_zone = grid(wannier)
     N = length(brillouin_zone)
 
-    return (1/N) * sum(brillouin_zone) do k
+    return (1 / N) * sum(brillouin_zone) do k
         phase[k] * expand(wannier[n, k] |> UnkBasisOrbital, [size(brillouin_zone)...])
     end
 end
 
-function (wannier::Wannier)(I::Range, phase=nothing)
-    phase === nothing && (phase = phase_factors(wannier))
-    return [wannier(n, phase) for n in I]
-end
+# function (wannier::Wannier)(I::Range, phase = nothing)
+#     phase === nothing && (phase = phase_factors(wannier))
+#     return [wannier(n, phase) for n in I]
+# end
+    # if coefficients(grid_vector) == [11, 17, 45] || coefficients(grid_vector) == [18, 17, 45]
+    #     println("k: $(k)\ng:$(g)")
+    #     println(transformed[k][n][g])
+    # end
+    # function bloch_orbital_sum(n) 
+    #     (1/N) * sum(brillouin_zone) do k
+    #         expanded = expand(transformed[k][n], [size(brillouin_zone)...])
+    #         phase[k] * expanded
+    #     end
+    # end
 
-function (u::Wannier)(::Colon, phase=nothing)
-    phase === nothing && (phase = phase_factors(u))
-    brillouin_zone = grid(u)
-    N = length(brillouin_zone)
-    transformed = init_wannier(brillouin_zone, UnkBasisOrbital{HomeCell3D})
-    U = gauge(u)
 
-    function transform(k)
-        Ψ = hcat(vectorize.(u[k])...)
-        Ψ = Ψ * U[k]
-        g = orbital_grid(u)
-        return [UnkBasisOrbital(g, reshape(c, size(g)...), k, n) for (n, c) in enumerate(eachcol(Ψ))]
-    end
+function (ũ::Wannier)(::Colon)
+    # phase === nothing && (phase = phase_factors(u))
+    brillouin_zone = grid(ũ)
+    reciprocal_lattice = orbital_grid(ũ)
 
-    for k in brillouin_zone
-        transformed[k] = transform(k)
-    end
-
-    function bloch_orbital_sum(n) 
-        (1/N) * sum(brillouin_zone) do k
-            expanded = expand(transformed[k][n], [size(brillouin_zone)...])
-            phase[k] * expanded
+    reciprocal_supercell = expand(ReciprocalLattice3D(basis(brillouin_zone), domain(brillouin_zone)), [size(reciprocal_lattice)...])
+    function bloch_orbital_sum(n)
+        target_orbital = UnkBasisOrbital(reciprocal_supercell, zeros(ComplexFxx, size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n)
+        Threads.@threads for k in collect(brillouin_zone)
+            for g in collect(reciprocal_lattice)
+                grid_vector = reset_overflow(snap(reciprocal_supercell, -cartesian(k) + cartesian(g)))
+                target_orbital[grid_vector] = ũ[k][n][g]
+            end
         end
+        return target_orbital |> wtp_normalize!
     end
-    
-    return bloch_orbital_sum.(1:n_band(u))
+    @time result = bloch_orbital_sum(1)
+    return result
 end
 
 """
@@ -211,9 +240,9 @@ by phase shifting its image in the first Brillouin zone.
 """
 function Base.getindex(u::Wannier, k::KPoint)
     images_in_brillouin_zone = invoke(Base.getindex, Tuple{OnGrid,KPoint}, u, reset_overflow(k))
-    translated_orbitals = has_overflow(k) ?  
-        (o -> standardize(translate(o, -grid(o)[overflow(k)...]))).(images_in_brillouin_zone) :
-        images_in_brillouin_zone
+    translated_orbitals = has_overflow(k) ?
+                          (o -> standardize(translate(o, -grid(o)[overflow(k)...]))).(images_in_brillouin_zone) :
+                          images_in_brillouin_zone
     return (o -> kpoint!(o, k)).(translated_orbitals)
 end
 
@@ -230,7 +259,7 @@ end
 NeighborIntegral() = NeighborIntegral(Dict())
 integrals(n::NeighborIntegral) = n.integrals
 
-function Base.hash(p::Pair{<:KPoint,<:KPoint}) 
+function Base.hash(p::Pair{<:KPoint,<:KPoint})
     m, n = p
     return hash(m) + hash(n)
 end
@@ -238,8 +267,8 @@ end
 function Base.getindex(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KPoint)
     k_1 == k_2 && return I
     i = integrals(neighbor_integral)
-    haskey(i, k_1 => k_2) && return i[k_1 => k_2]
-    haskey(i, k_2 => k_1) && return adjoint(i[k_2 => k_1])
+    haskey(i, k_1 => k_2) && return i[k_1=>k_2]
+    haskey(i, k_2 => k_1) && return adjoint(i[k_2=>k_1])
     return nothing
 end
 
@@ -247,9 +276,9 @@ function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatr
     g_1, g_2 = g
     i = integrals(neighbor_integral)
     if haskey(i, g_2 => g_1)
-        i[g_2 => g_1] = adjoint(value)
+        i[g_2=>g_1] = adjoint(value)
     else
-        i[g_1 => g_2] = value
+        i[g_1=>g_2] = value
     end
 end
 
@@ -264,7 +293,7 @@ Perform a gauge transform on the neighbor integrals.
 function gauge_transform(neighbor_integral::NeighborIntegral, gauge::Gauge)
     t = NeighborIntegral()
     for ((k_1, k_2), integral) in integrals(neighbor_integral)
-        t[k_1, k_2] = adjoint(gauge[k_1]) * integral * gauge[k_2] 
+        t[k_1, k_2] = adjoint(gauge[k_1]) * integral * gauge[k_2]
     end
     return t
 end

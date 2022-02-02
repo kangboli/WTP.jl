@@ -15,7 +15,8 @@ export FiniteDifference,
     neighbor_basis_integral,
     BranchStable,
     BranchNaive,
-    ila_gradient,
+    TruncatedConvolution,
+    gauge_gradient,
     ILAOptimizer
 
 abstract type FiniteDifference end
@@ -86,7 +87,7 @@ end
 """
 Solve Aw = q
 """
-function compute_weights(neighbor_shells::Vector{Vector{T}}) where T <: AbstractGridVector
+function compute_weights(neighbor_shells::Vector{Vector{T}}) where {T<:AbstractGridVector}
 
     indices = SortedDict(
         (1, 1) => 1,
@@ -123,18 +124,29 @@ end
 
 abstract type BranchStable end
 abstract type BranchNaive end
+abstract type TruncatedConvolution end
 
-center(scheme::W90FiniteDifference, n::Integer) =center(scheme, n, BranchNaive) 
-center(scheme::W90FiniteDifference, n::Integer, ::Type{T}) where T = center(neighbor_basis_integral(scheme), scheme, n, T)
+center(scheme::W90FiniteDifference, n::Integer) = center(scheme, n, BranchNaive)
+center(scheme::W90FiniteDifference, n::Integer, ::Type{T}) where {T} = center(neighbor_basis_integral(scheme), scheme, n, T)
 center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer) = center(M, scheme, n, BranchNaive)
 
-function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchNaive})
-    function kpoint_contribution(k::KPoint)
-        -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
-            sum(shell) do b
-                w * cartesian(b) * angle(M[k, k+b][n, n])
-            end
+function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{TruncatedConvolution})
+    brillouin_zone = collect(grid(scheme))
+
+    phase(b::KPoint) = angle(1 / length(brillouin_zone) * sum(k -> M[k, k+b][n, n], brillouin_zone))
+
+    return -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(unique(k -> Set([k, -k]), shell)) do b
+            ϕ⁺, ϕ⁻ = phase(b), phase(-b)
+            branch = (sign(ϕ⁺) == sign(ϕ⁻) ? -1 : 1)
+            w * cartesian(b) * ϕ⁺ + w * cartesian(-b) * branch * ϕ⁻
         end
+    end
+end
+
+function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchNaive})
+    kpoint_contribution(k::KPoint) = -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(b->w * cartesian(b) * angle(M[k, k+b][n, n]), shell) 
     end
 
     brillouin_zone = collect(grid(scheme))
@@ -142,42 +154,44 @@ function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type
 end
 
 function center(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int, ::Type{BranchStable})
-    function kpoint_contribution(k::KPoint)
-        -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
-            sum(unique(k->Set([k, -k]), shell)) do b
-                ϕ⁺ = M[k, k+b][n, n] |> angle
-                ϕ⁻ = M[k, k-b][n, n] |> angle
-                branch = (sign(ϕ⁺) == sign(ϕ⁻) ? -1 : 1)
-                w * cartesian(b) * ϕ⁺ + w * cartesian(-b) * branch * ϕ⁻
-            end
+    kpoint_contribution(k::KPoint) = -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(unique(k -> Set([k, -k]), shell)) do b
+            ϕ⁺ = M[k, k+b][n, n] |> angle
+            ϕ⁻ = M[k, k-b][n, n] |> angle
+            branch = (sign(ϕ⁺) == sign(ϕ⁻) ? -1 : 1)
+            w * cartesian(b) * ϕ⁺ + w * cartesian(-b) * branch * ϕ⁻
         end
     end
 
     brillouin_zone = scheme |> grid |> collect
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
-    
+
 end
 
 second_moment(scheme::W90FiniteDifference, n::Int) = second_moment(neighbor_basis_integral(scheme), scheme, n)
 
 function second_moment(M::NeighborIntegral, scheme::W90FiniteDifference, n::Int)
-    function kpoint_contribution(k::KPoint)
-        sum(zip(weights(scheme), shells(scheme))) do (w, shell)
-            sum(shell) do b
-                w * (1 - abs2(M[k, k+b][n, n]) + angle(M[k, k+b][n, n])^2)
-            end
-        end
+    kpoint_contribution(k::KPoint) = sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(b->w * (1 - abs2(M[k, k+b][n, n]) + angle(M[k, k+b][n, n])^2), shell)
     end
     brillouin_zone = collect(grid(scheme))
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
 
 spread(scheme::W90FiniteDifference, n::Integer) = spread(scheme, n, BranchNaive)
-spread(scheme::W90FiniteDifference, n::Integer, ::Type{T}) where T = spread(neighbor_basis_integral(scheme), scheme, n, T)
-spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer) = spread(M, scheme, n, BranchNaive) 
-spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer, ::Type{T}) where T = second_moment(M, scheme, n) - 
-    norm(center(M, scheme, n, T))^2
-    
+spread(scheme::W90FiniteDifference, n::Integer, ::Type{T}) where {T} = spread(neighbor_basis_integral(scheme), scheme, n, T)
+spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer) = spread(M, scheme, n, BranchNaive)
+spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer, ::Type{T}) where {T} = second_moment(M, scheme, n) -
+                                                                                            norm(center(M, scheme, n, T))^2
+
+function spread(M::NeighborIntegral, scheme::W90FiniteDifference, n::Integer, ::Type{TruncatedConvolution})
+    brillouin_zone = collect(grid(scheme))
+    ρ̃(b) = sum(k -> M[k, k+b][n, n], brillouin_zone) / length(brillouin_zone) 
+
+    sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(b -> 2w * (1 - abs(ρ̃(b))), shell)
+    end
+end
 
 
 function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
@@ -187,8 +201,7 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     """
     Compute the mmn matrix between k1 and k2.
     """
-    function mmn_matrix(k_1::T, k_2::T) where T <: AbstractGridVector{<:BrillouinZone}
-
+    function mmn_matrix(k_1::T, k_2::T) where {T<:AbstractGridVector{<:BrillouinZone}}
         U_adjoint = vcat(adjoint.(vectorize.(u[k_1]))...)
         V = hcat(map(vectorize, u[k_2])...)
         return U_adjoint * V
@@ -201,29 +214,58 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
             M[k, neighbor] = mmn_matrix(k, neighbor)
         end
     end
-    for k in brillouin_zone
-        (m -> cache!(m, M)).(u[k])
-    end
     return M
 end
+
+# for k in brillouin_zone
+#     (m -> cache!(m, M)).(u[k])
+# end
 
 function n_band(M::NeighborIntegral)
     first_matrix = collect(values(integrals(M)))[1]
     return size(first_matrix, 1)
 end
 
-function ila_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::B) where B <: BrillouinZone
+gauge_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::BrillouinZone) =
+    gauge_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::BrillouinZone, BranchNaive)
+
+
+"""
+Gauge gradient for the finite difference.
+
+"""
+function gauge_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::B, ::Type{BranchNaive}) where {B<:BrillouinZone}
     M = gauge_transform(neighbor_basis_integral(scheme), U)
     N = n_band(M)
-    c = (n->center(M, scheme, n)).(1:N)
-    
-    G = k-> sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+    c = (n -> center(M, scheme, n)).(1:N)
+
+    G = k -> sum(zip(weights(scheme), shells(scheme))) do (w, shell)
         sum(shell) do b
             A = M[k, k+b]
-            q = [angle(A[n, n]) + cartesian(b)' * c[n] for n=1:N]
-            R = hcat([A[:, n] * A[n, n]' for n=1:N]...)
-            T = hcat([(A[:, n] / A[n, n]) * q[n] for n=1:N]...)
-            4w * ((R-R')/2 - (T+T')/2im) / length(brillouin_zone)
+            q = [angle(A[n, n]) + cartesian(b)' * c[n] for n = 1:N]
+            R = hcat([A[:, n] * A[n, n]' for n = 1:N]...)
+            T = hcat([(A[:, n] / A[n, n]) * q[n] for n = 1:N]...)
+            4w * ((R - R') / 2 - (T + T') / 2im) / length(brillouin_zone)
+        end
+    end
+
+    return map(G, brillouin_zone)
+end
+
+"""
+Gauge gradient for the ILA. 
+
+"""
+function gauge_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::B, ::Type{TruncatedConvolution}) where {B<:BrillouinZone}
+    M = gauge_transform(neighbor_basis_integral(scheme), U)
+    N = n_band(M)
+
+    ρ̃ = Dict(b => (n -> 1 / N * sum(k -> M[k, k+b][n, n], brillouin_zone)).(1:N) for b in vcat(shells(scheme)...))
+
+    G = k -> sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(shell) do b
+            R = hcat([M[k, k+b][:, n] * ρ̃[b][n]' / abs(ρ̃[b][n]) for n = 1:N]...)
+            2w * (R - R') / length(brillouin_zone)
         end
     end
 
@@ -231,24 +273,24 @@ function ila_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::B) 
 end
 
 
-function all_spread(U, scheme) 
+function all_spread(U, scheme, ::Type{Branch}) where {Branch}
     M = gauge_transform(neighbor_basis_integral(scheme), U)
     N = n_band(M)
     return map(1:N) do n
-        spread(M, scheme, n)
+        spread(M, scheme, n, Branch)
     end
 end
 
-function all_center(U, scheme) 
+function all_center(U, scheme, ::Type{Branch}) where {Branch}
     M = gauge_transform(neighbor_basis_integral(scheme), U)
     N = n_band(M)
     return map(1:N) do n
-        center(M, scheme, n)
+        center(M, scheme, n, Branch)
     end
 end
 
-function line_search(U, f, ∇f, ∇f², α; α_0=2)
-    brillouin_zone = grid(U) 
+function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
+    brillouin_zone = grid(U)
     Ω = f(U)
     ∇Ω = ∇f(U)
     ∇Ω² = ∇f²(∇Ω)
@@ -258,7 +300,7 @@ function line_search(U, f, ∇f, ∇f², α; α_0=2)
 
     function try_step(α)
         Q = Ω - 0.5α * ∇Ω²
-        new_elements = elements(map(k->U[k] * cis(-Hermitian(1im * α * ∇Ω[k])), brillouin_zone))
+        new_elements = elements(map(k -> U[k] * cis(-Hermitian(1im * α * ∇Ω[k])), brillouin_zone))
         V = Gauge{typeof(brillouin_zone)}(brillouin_zone, new_elements)
         Ω_V = f(V)
         return V, Ω_V, Q
@@ -268,14 +310,15 @@ function line_search(U, f, ∇f, ∇f², α; α_0=2)
         V, Ω_V, Q = try_step(α)
 
         discontinuous = ∇Ω² > 1e-7 && α < 1e-3
-        discontinuous && return let α = α_0, (V, Ω_V, _) = try_step(α);
-            println("Discontinuous!"); println()
+        discontinuous && return let α = α_0, (V, Ω_V, _) = try_step(α)
+            println("Discontinuous!")
+            println()
             V, Ω_V, α, ∇Ω²
         end
         # println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
         # println()
         Ω_V > Q || return V, Ω_V, α, ∇Ω²
-        α /= 2 
+        α /= 2
     end
 end
 
@@ -286,54 +329,58 @@ struct ILAOptimizer
 end
 scheme(optimizer::ILAOptimizer) = optimizer.scheme
 
-function (optimizer::ILAOptimizer)(U_0::Gauge; n_iteration=Inf, α_0=2) 
+function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf, α_0 = 2) where {Branch}
     N = optimizer |> scheme |> neighbor_basis_integral |> n_band
     U = U_0
     brillouin_zone = grid(U)
-    f = U -> sum(all_spread(U, scheme(optimizer)))
-    ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(ila_gradient(U, scheme(optimizer), brillouin_zone))) 
+    f = U -> sum(all_spread(U, scheme(optimizer), Branch))
+    ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(gauge_gradient(U, scheme(optimizer), brillouin_zone, Branch)))
     ∇f² = ∇f -> sum(brillouin_zone) do k
-            v = reshape(∇f[k], N^2)
-            abs(v' * v)
+        v = reshape(∇f[k], N^2)
+        abs(v' * v)
     end
     α = α_0
 
     current_iteration = -1
     while n_iteration > current_iteration
         current_iteration += 1
-        U, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², 2α, α_0=α_0)
+        U, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², 2α, α_0 = α_0)
         ∇Ω² < 1e-7 && break
-
-        append!(optimizer.meta[:ila_spread], [all_spread(U, scheme(optimizer))])
-        mod(current_iteration, 10) == 0 || continue
-
-        println("Ω: $(Ω)"); println("∇Ω²: $(∇Ω²)"); println("α: $(α)");
-        u = set_gauge(optimizer.meta[:u], U)
-        wannier_orbitals = u(:, optimizer.meta[:phase])
-        densities = abs2.(wannier_orbitals)
-        # σ_total = 0
-        # println("Convolutional: $(σ_total)")
-        # @printf "ILA        : %.3f  %.3f  %.3f  %.3f\n" ...
-        # @printf "Convolution: "
-        center_difference = zeros(N)
-        convolutional_spread = zeros(N)
-        ila_centers = all_center(U, scheme(optimizer))
-        for i in 1:length(densities)
-            ρ = densities[i]
-            c, σ = center_spread(fft(ρ, false), optimizer.meta[:r̃2])
-            center_difference[i] = norm(c - ila_centers[i])
-            convolutional_spread[i] = σ
-            # @printf "%.3f  " σ
-            # σ_total += σ
-        end
-
-        append!(optimizer.meta[:center_difference], [center_difference])
-        append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
-        println()
-
+        log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
     end
     println(current_iteration)
     return U
+end
+
+function log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
+    append!(optimizer.meta[:ila_spread], [all_spread(U, scheme(optimizer), Branch)])
+    mod(current_iteration, 10) == 0 || return
+
+    println("Ω: $(Ω)")
+    println("∇Ω²: $(∇Ω²)")
+    println("α: $(α)")
+    u = set_gauge(optimizer.meta[:u], U)
+    wannier_orbitals = u(:, optimizer.meta[:phase])
+    densities = abs2.(wannier_orbitals)
+    # σ_total = 0
+    # println("Convolutional: $(σ_total)")
+    # @printf "ILA        : %.3f  %.3f  %.3f  %.3f\n" ...
+    # @printf "Convolution: "
+    center_difference = zeros(N)
+    convolutional_spread = zeros(N)
+    ila_centers = all_center(U, scheme(optimizer), Branch)
+    for i in 1:length(densities)
+        ρ = densities[i]
+        c, σ = center_spread(fft(ρ, false), optimizer.meta[:r̃2])
+        center_difference[i] = norm(c - ila_centers[i])
+        convolutional_spread[i] = σ
+        # @printf "%.3f  " σ
+        # σ_total += σ
+    end
+
+    append!(optimizer.meta[:center_difference], [center_difference])
+    append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
+    println()
 end
 
 

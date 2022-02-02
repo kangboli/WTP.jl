@@ -1,4 +1,4 @@
-using SparseArrays, Transducers
+using SparseArrays #, Transducers
 
 export NumericalOperator, integrate, indices, expand_storage!
 

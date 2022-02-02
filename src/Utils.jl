@@ -7,7 +7,7 @@ Convert a set of three sizes into a domain.
 
 sizes must be an iterable of numbers.
 """
-function size_to_domain(sizes) 
+function size_to_domain(sizes)
     domain(s::Integer) = iseven(s) ? (-s ÷ 2, s ÷ 2 - 1) : (-s ÷ 2, s ÷ 2)
 
     return Tuple(domain(n) for n in Int.(sizes))
@@ -57,6 +57,22 @@ with offsets go from -n-o to n-o.
 
 
 """
+    miller_to_standard(sizes, indices)
+
+Convert a set of miller indices to standard indices without offset. 
+"""
+miller_to_standard(
+    sizes,
+    indices::AbstractVector{<:Integer},
+) = collect(
+    Iterators.map(
+        (m, s) -> m >= 0 ? m + 1 : m + s + 1,
+        indices,
+        sizes,
+    ),
+)
+
+"""
     miller_to_standard(sizes, indices, offsets)
 
 Convert a set of miller indices to standard indices. 
@@ -74,6 +90,26 @@ miller_to_standard(
     ),
 )
 
+
+"""
+    standard_to_miller(sizes, indices)
+
+Convert a set of standard indices to miller indices without offsets.
+"""
+standard_to_miller(
+    sizes,
+    indices::AbstractVector{<:Integer},
+) = collect(
+    Iterators.map(
+        (m, s) -> let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
+            m <= z ? m - 1 : m - 1 - s
+        end,
+        indices,
+        offsets,
+        sizes,
+    ),
+)
+
 """
     standard_to_miller(sizes, indices, offsets)
 
@@ -85,7 +121,9 @@ standard_to_miller(
     offsets::AbstractVector{<:Integer},
 ) = collect(
     Iterators.map(
-        (m, o, s) -> m <= s ÷ 2 ? m - 1 - o : m - 1 - s - o,
+        (m, o, s) -> let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
+            m <= z ? m - 1 - o : m - 1 - s - o
+        end,
         indices,
         offsets,
         sizes,
@@ -133,8 +171,7 @@ three_to_one(x::Integer, y::Integer, z::Integer, sizes) =
 
 Create a copy of `a` with its field `b` set to `c`. 
 
-This is a limited version of `@set` from `Setfield` that does not leak memory.
-This should be deprecated if the memory problem with `Setfield` is figured out.
+This is a castrated version of `@set` from `Setfield`.
 """
 macro set(assignement)
     target = assignement.args[1]

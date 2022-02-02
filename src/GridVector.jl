@@ -27,19 +27,31 @@ the grid domain to bring it into the grid domain.
 # wrapped(grid_vector::AbstractGridVector) = 
 #     coefficients(grid_vector) + overflow(grid_vector) .* [size(grid(grid_vector))...]
 
-wrapped(grid_vector::AbstractGridVector) = [
-    mod((c - l), r - l + 1) + l for
-    (c, (l, r)) in zip(coefficients(grid_vector), domain(grid(grid_vector)))
-]
+function wrapped(grid_vector::AbstractGridVector) 
+    c = coefficients(grid_vector)
+    d = domain(grid(grid_vector))
+    result = zeros(Int, 3)
+    for i = 1:3
+        (l, r) = d[i]
+        result[i] = mod((c[i] - l), r - l + 1) + l
+    end
+    return result
+end
 
 """
 This gives the number of times we have to translate a vector by a grid domain to
 bring them into the grid domain.
 """
-overflow(grid_vector::AbstractGridVector) = [
-    fld((c - l), r - l + 1) for
-    (c, (l, r)) in zip(coefficients(grid_vector), domain(grid(grid_vector)))
-]
+function overflow(grid_vector::AbstractGridVector) 
+    c = coefficients(grid_vector)
+    d = domain(grid(grid_vector))
+    result = zeros(Int, 3)
+    for i = 1:3
+        (l, r) = d[i]
+        result[i] = fld((c[i] - l), r - l + 1)
+    end
+    return result
+end
 
 
 """
@@ -77,20 +89,20 @@ Return the basis as they are internally stored (as kets).
 """
 _basis(grid_vector::AbstractGridVector) = basis(grid(grid_vector))
 
-function add(grid_vec_1::AbstractGridVector, grid_vec_2::AbstractGridVector)
-    ket(grid_vec_1) == ket(grid_vec_2) || error("Adding a bra to a ket.")
-    grid(grid_vec_1) == grid(grid_vec_2) || error("Grid vectors defined on different grid.")
-    return typeof(grid_vec_1)(
-        grid(grid_vec_1),
-        coefficients(grid_vec_1) + coefficients(grid_vec_2),
-        ket(grid_vec_1),
+function add(grid_vector_1::AbstractGridVector, grid_vector_2::AbstractGridVector)
+    ket(grid_vector_1) == ket(grid_vector_2) || error("Adding a bra to a ket.")
+    grid(grid_vector_1) == grid(grid_vector_2) || error("Grid vectors defined on different grid.")
+    return typeof(grid_vector_1)(
+        grid(grid_vector_1),
+        coefficients(grid_vector_1) + coefficients(grid_vector_2),
+        ket(grid_vector_1),
     )
 end
 
-negate(grid_vec_1::AbstractGridVector) =
-    typeof(grid_vec_1)(grid(grid_vec_1), -coefficients(grid_vec_1), ket(grid_vec_1))
+negate(grid_vector_1::AbstractGridVector) =
+    typeof(grid_vector_1)(grid(grid_vector_1), -coefficients(grid_vector_1), ket(grid_vector_1))
 mul(s::Number, l1::AbstractGridVector) = typeof(l1)(grid(l1), s * coefficients(l1), ket(l1))
-minus(grid_vec_1::AbstractGridVector, grid_vec_2::AbstractGridVector) = add(grid_vec_1, negate(grid_vec_2))
+minus(grid_vector_1::AbstractGridVector, grid_vector_2::AbstractGridVector) = add(grid_vector_1, negate(grid_vector_2))
 
 grid_vector_constructor(g::T, _coefficients) where {T<:Grid} =
     GridVector{T}(g, SVector(_coefficients...), true)
@@ -101,21 +113,21 @@ function Base.show(io::IO, grid_vector::AbstractGridVector)
     print(io, indent("_coefficients: $(coefficients(grid_vector))")*"\n")
 end
 
-Base.:(==)(grid_vec_1::AbstractGridVector, grid_vec_2::AbstractGridVector) =
-    coefficients(grid_vec_1) == coefficients(grid_vec_2) &&
+Base.:(==)(grid_vector_1::AbstractGridVector, grid_vector_2::AbstractGridVector) =
+    coefficients(grid_vector_1) == coefficients(grid_vector_2) &&
     ## TODO: Put this back and figure out if it breaks things.
     # grid(grid_vec_1) == grid(grid_vec_2) &&
-    ket(grid_vec_1) == ket(grid_vec_2)
+    ket(grid_vector_1) == ket(grid_vector_2)
 
-Base.hash(grid_vec::AbstractGridVector) = hash(coefficients(grid_vec)) + hash(ket(grid_vec))
+Base.hash(grid_vector::AbstractGridVector) = hash(coefficients(grid_vector)) + hash(ket(grid_vector))
 
 """
-    cartesian(grid_vec)
+    cartesian(grid_vector)
 
 The Cartesian coordinates of a grid vector.
 """
-cartesian(grid_vec::AbstractGridVector)::Vector{Number} = 
-    vector3_to_matrix(basis(grid_vec)) * coefficients(grid_vec)
+cartesian(grid_vector::AbstractGridVector)::Vector{Number} = 
+    vector3_to_matrix(basis(grid_vector)) * coefficients(grid_vector)
 # cartesian(grid_vec::AbstractGridVector)::Vector{Number} = basis_transform(
 #     coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
 
@@ -126,6 +138,6 @@ Convert a grid vector to an integer as a linear index.
 Indexing the underlying grid with this integer gives back
 the grid vector.
 """
-linear_index(grid_vec::AbstractGridVector) = let sizes = size(grid(grid_vec))
-    three_to_one(miller_to_standard(sizes, coefficients(grid_vec), [0, 0, 0])..., sizes)
+linear_index(grid_vector::AbstractGridVector) = let sizes = size(grid(grid_vector))
+    three_to_one(miller_to_standard(sizes, coefficients(grid_vector), [0, 0, 0])..., sizes)
 end

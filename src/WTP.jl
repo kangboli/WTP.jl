@@ -9,6 +9,7 @@ using DataStructures
 using Folds
 
 const ComplexFxx = ComplexF64
+const overflow_detection = false
 
 include("Utils.jl")
 include("Basis.jl")
