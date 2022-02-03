@@ -399,8 +399,8 @@ fft of the density (instead of the orbital).
 function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLattice}
     convolved = ifft(õ * r̃2, false)
     elements!(convolved, abs.(elements(convolved)))
-    index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
-    r_min = grid(convolved)(index_min)
+    linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
+    r_min = grid(convolved)(linear_index_min)
     # return r_min, convolved[r_min]
     return quadratic_fit(convolved, r_min)
 end

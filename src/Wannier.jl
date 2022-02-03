@@ -36,7 +36,7 @@ function Gauge(grid::T, n::Integer) where {T<:BrillouinZone}
     return U
 end
 
-function reset_gauge!(U::Gauge, n::Integer) 
+function reset_gauge!(U::Gauge, n::Integer)
     for v in grid(U)
         U[v] = diagm(ones(ComplexFxx, n))
     end
@@ -197,16 +197,16 @@ end
 #     phase === nothing && (phase = phase_factors(wannier))
 #     return [wannier(n, phase) for n in I]
 # end
-    # if coefficients(grid_vector) == [11, 17, 45] || coefficients(grid_vector) == [18, 17, 45]
-    #     println("k: $(k)\ng:$(g)")
-    #     println(transformed[k][n][g])
-    # end
-    # function bloch_orbital_sum(n) 
-    #     (1/N) * sum(brillouin_zone) do k
-    #         expanded = expand(transformed[k][n], [size(brillouin_zone)...])
-    #         phase[k] * expanded
-    #     end
-    # end
+# if coefficients(grid_vector) == [11, 17, 45] || coefficients(grid_vector) == [18, 17, 45]
+#     println("k: $(k)\ng:$(g)")
+#     println(transformed[k][n][g])
+# end
+# function bloch_orbital_sum(n) 
+#     (1/N) * sum(brillouin_zone) do k
+#         expanded = expand(transformed[k][n], [size(brillouin_zone)...])
+#         phase[k] * expanded
+#     end
+# end
 
 
 function (ũ::Wannier)(::Colon)
@@ -214,19 +214,32 @@ function (ũ::Wannier)(::Colon)
     brillouin_zone = grid(ũ)
     reciprocal_lattice = orbital_grid(ũ)
 
-    reciprocal_supercell = expand(ReciprocalLattice3D(basis(brillouin_zone), domain(brillouin_zone)), [size(reciprocal_lattice)...])
-    function bloch_orbital_sum(n)
-        target_orbital = UnkBasisOrbital(reciprocal_supercell, zeros(ComplexFxx, size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n)
-        Threads.@threads for k in collect(brillouin_zone)
-            for g in collect(reciprocal_lattice)
-                grid_vector = reset_overflow(snap(reciprocal_supercell, -cartesian(k) + cartesian(g)))
-                target_orbital[grid_vector] = ũ[k][n][g]
-            end
+    reciprocal_supercell = expand(make_grid(ReciprocalLattice3D, basis(brillouin_zone), domain(brillouin_zone)), [size(reciprocal_lattice)...])
+
+    orbital_elements = zeros(ComplexFxx, length(brillouin_zone) * length(reciprocal_lattice), n_band(ũ))
+    Threads.@threads for k in collect(brillouin_zone)
+        U = hcat(vectorize.(ũ[k])...)
+        for g in collect(reciprocal_lattice)
+            grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
+            orbital_elements[linear_index(grid_vector), :] = U[linear_index(g), :]
         end
-        return target_orbital |> wtp_normalize!
     end
-    @time result = bloch_orbital_sum(1)
-    return result
+
+    return [UnkBasisOrbital(reciprocal_supercell, reshape(orbital_elements[:, n],
+            size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n) |> wtp_normalize! for n in 1:n_band(ũ)]
+
+    # function bloch_orbital_sum(n)
+    #     target_orbital = UnkBasisOrbital(reciprocal_supercell, zeros(ComplexFxx, size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n)
+    #     Threads.@threads for k in collect(brillouin_zone)
+    #         for g in collect(reciprocal_lattice)
+    #             grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
+    #             target_orbital[grid_vector] = ũ[k][n][g]
+    #         end
+    #     end
+    #     return target_orbital |> wtp_normalize!
+    # end
+    # @time result = bloch_orbital_sum(1)
+    # return result
 end
 
 """
@@ -239,10 +252,9 @@ by phase shifting its image in the first Brillouin zone.
 
 """
 function Base.getindex(u::Wannier, k::KPoint)
-    images_in_brillouin_zone = invoke(Base.getindex, Tuple{OnGrid,KPoint}, u, reset_overflow(k))
-    translated_orbitals = has_overflow(k) ?
-                          (o -> standardize(translate(o, -grid(o)[overflow(k)...]))).(images_in_brillouin_zone) :
-                          images_in_brillouin_zone
+    flagged_overflow = has_overflow(k)
+    images_in_brillouin_zone = invoke(Base.getindex, Tuple{OnGrid,KPoint}, u, flagged_overflow ? reset_overflow(k) : k)
+    translated_orbitals = flagged_overflow ? (o -> standardize(translate(o, -grid(o)[overflow(k)...]))).(images_in_brillouin_zone) : images_in_brillouin_zone
     return (o -> kpoint!(o, k)).(translated_orbitals)
 end
 

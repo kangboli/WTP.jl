@@ -48,7 +48,7 @@ and domain $(-10, 9)$ in each direction in terms of the basis vectors.
 
 ```@example grid
 homecell_basis = (Vector3(0, sqrt(3)/2, 0), Vector3(1, 1/2, sqrt(3)/2), Vector3(0, 0, 1/2))
-homecell = HomeCell3D(homecell_basis, ((-10, 9), (-10, 9), (-10, 9)))
+homecell = make_grid(HomeCell3D, homecell_basis, ((-10, 9), (-10, 9), (-10, 9)))
 ```
 
 We provide four different grids by default

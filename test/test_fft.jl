@@ -11,7 +11,7 @@ using WTP
     # Transform the UNK back to the reciprocal space.
     unk = UNK(joinpath(test_1_dir, "unk/UNK00001.1"))
     real_orbital = single_orbital_from_unk(unk,
-        HomeCell3D(CARTESIAN_BASIS, size_to_domain((unk.nx, unk.ny, unk.nz))), gamma_point, 1)
+        make_grid(HomeCell3D, CARTESIAN_BASIS, size_to_domain((unk.nx, unk.ny, unk.nz))), gamma_point, 1)
     # wtp_normalize!(real_orbital)
     real_transformed = fft(real_orbital)
     norm(elements(real_orbital))

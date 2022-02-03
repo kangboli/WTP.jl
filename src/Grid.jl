@@ -1,7 +1,7 @@
-export Grid, domain, domain!, basis, dual_grid,
+export Grid, domain, domain!, set_domain, basis, dual_grid,
     HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
     x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
-    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink
+    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink, make_grid
 
 """
 Non-orthogonal 3D periodic grid that comply to the centering convention.
@@ -32,14 +32,20 @@ domain(grid::Grid) = grid.domain
 
 Set the domain of `grid` to `new_grid`.
 """
-domain!(grid::Grid, new_domain) = grid.domain = new_domain
+function domain!(grid::Grid, new_domain)
+    grid.domain = new_domain
+    grid._size = _compute_size(new_domain)
+end
 
 """
     set_domain(grid, new_domain)
 
 Create a copy of `grid` with its domain set to `new_domain`.
 """
-set_domain(grid::Grid, new_domain) = @set grid.domain = new_domain
+function set_domain(grid::Grid, new_domain)
+    grid = @set grid.domain = new_domain
+    @set grid._size = _compute_size(new_domain)
+end
 
 x_min(grid::Grid) = domain(grid)[1][1]
 x_max(grid::Grid) = domain(grid)[1][2]
@@ -48,17 +54,15 @@ y_max(grid::Grid) = domain(grid)[2][2]
 z_min(grid::Grid) = domain(grid)[3][1]
 z_max(grid::Grid) = domain(grid)[3][2]
 
-function expand(grid::Grid, factors = [2, 2, 2])
+"""
+    expand(grid, factors=[2, 2, 2])
+
+Expand a grid by a factor of `factor`. The returned grid will have the 
+save basis vector, but it will be larger.
+"""
+function expand(grid::Grid, factors::Vector{Int} = [2, 2, 2])
     return set_domain(grid, size_to_domain(factors .* size(grid)))
 end
-
-# function shrink(grid::Grid, factors = [2, 2, 2])
-#     function shrink_one_dim(s, factor) 
-#         make_even(x) = isodd(x) ? x+1 : x 
-#         return make_even(s ÷ factor)
-#     end
-#     return set_domain(grid, size_to_domain(map(shrink_one_dim, size(grid), factors)))
-# end
 
 """
     mins(grid::Grid)
@@ -68,7 +72,7 @@ The minimum indices of the grid along each direction.
 Example: 
 
 ```julia
-homecell = HomeCell3D(CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
+homecell = make_grid(HomeCell3D, CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
 mins(homecell) # gives [-2, -2, -2]
 ```
 """
@@ -113,11 +117,21 @@ The vectors returned are always ket vectors.
 basis(grid::Grid) = grid.basis
 
 """
+    basis_matrix(g)
+
+The basis vector as a matrix, where each column is a basis vector.
+The matrix is cached because this has an impact on performance.
+"""
+basis_matrix(grid::Grid) = grid._basis_matrix
+
+_compute_size(domain) = Tuple(d[2] - d[1] + 1 for d in domain)
+
+"""
     size(g)
 
-The size of the grid. The result is a tuple of integers.
+The size of the grid. The result is a vector of 3 integers.
 """
-Base.size(g::Grid) = Tuple(d[2] - d[1] + 1 for d in domain(g))
+Base.size(g::Grid) = g._size
 
 """
     length(g)
@@ -178,7 +192,7 @@ Convert the grid to a multidimensional array.
 Example:
 
 ```julia
-homecell = HomeCell3D(CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
+homecell = make_grid(HomeCell3D, CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
 array(homecell)[1, 1, 1]
 # grid: HomeCell3D
 # _coefficients: [-2, -2, -2]
@@ -193,18 +207,17 @@ Iterate over the grid gives a sequence of grid vectors that goes through each
 grid point. The order of the iteration is not guaranteed.
 """
 function Base.iterate(grid::Grid)
-
-    miller = Iterators.product([l:u for (l, u) in zip(mins(grid), maxes(grid))]...)
-    first, miller_state = iterate(miller)
-    return (grid_vector_constructor(grid, [first...]), (miller, miller_state))
+    linear_indices = 1:length(grid)
+    first, linear_indices_state = iterate(linear_indices)
+    return (grid(first), (linear_indices, linear_indices_state))
 end
 
 function Base.iterate(grid::Grid, state)
-    miller, miller_state = state
-    next_miller = iterate(miller, miller_state)
-    next_miller === nothing && return nothing
-    next, miller_state = next_miller
-    return (grid_vector_constructor(grid, [next...]), (miller, miller_state))
+    linear_indices, linear_indices_state = state
+    next_linear_index = iterate(linear_indices, linear_indices_state)
+    next_linear_index === nothing && return nothing
+    next, linear_indices_state = next_linear_index
+    return (grid(next), (linear_indices, linear_indices_state))
 end
 
 """
@@ -224,8 +237,8 @@ aᵢᵀ bᵢ = 2π / sᵢ,
 where s is the size of the grid (number of grid points in each direction).
 """
 transform_grid(grid::T) where {T<:Grid} =
-    let A = vector3_to_matrix(basis(grid)) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
-        dual_grid(T)(matrix_to_vector3(B), size_to_domain(size(grid)))
+    let A = basis_matrix(grid) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
+        make_grid(dual_grid(T), matrix_to_vector3(B), size_to_domain(size(grid)))
     end
 
 """
@@ -234,7 +247,7 @@ transform_grid(grid::T) where {T<:Grid} =
 Snap a coordinate to a grid point.  
 """
 snap(grid::Grid, point::AbstractVector) =
-    grid_vector_constructor(grid, Int.(round.(vector3_to_matrix(basis(grid)) \ point)))
+    grid_vector_constructor(grid, Int.(round.(basis_matrix(grid) \ point)))
 
 
 """
@@ -294,6 +307,8 @@ function on this grid.
 struct HomeCell3D <: HomeCell
     basis::Tuple{Vector3,Vector3,Vector3}
     domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
+    _basis_matrix::Matrix{Float64}
+    _size::Tuple{Integer,Integer,Integer}
 end
 
 abstract type ReciprocalLattice <: Grid end
@@ -312,6 +327,8 @@ reciprocal_lattice = transform_grid(homecell)
 struct ReciprocalLattice3D <: ReciprocalLattice
     basis::Tuple{Vector3,Vector3,Vector3}
     domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
+    _basis_matrix::Matrix{Float64}
+    _size::Tuple{Integer,Integer,Integer}
 end
 
 abstract type BrillouinZone <: Grid end
@@ -321,6 +338,8 @@ The 3D Brillouin zone. The usage is the same of `HomeCell3D`.
 struct BrillouinZone3D <: BrillouinZone
     basis::Tuple{Vector3,Vector3,Vector3}
     domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
+    _basis_matrix::Matrix{Float64}
+    _size::Tuple{Integer,Integer,Integer}
 end
 
 abstract type RealLattice <: Grid end
@@ -330,6 +349,12 @@ The 3D crystal lattice. This is the dual grid of `BrillouinZone3D`.
 struct RealLattice3D <: RealLattice
     basis::Tuple{Vector3,Vector3,Vector3}
     domain::Tuple{Tuple{Integer,Integer},Tuple{Integer,Integer},Tuple{Integer,Integer}}
+    _basis_matrix::Matrix{Float64}
+    _size::Tuple{Integer,Integer,Integer}
+end
+
+function make_grid(::Type{T}, basis, domain) where {T<:Grid}
+    return T(basis, domain, vector3_to_matrix(basis), _compute_size(domain))
 end
 
 dual_grid(::Type{HomeCell3D}) = ReciprocalLattice3D
@@ -341,10 +366,3 @@ inverse_grid(::Type{HomeCell3D}) = RealLattice3D
 inverse_grid(::Type{RealLattice3D}) = HomeCell3D
 inverse_grid(::Type{BrillouinZone3D}) = ReciprocalLattice3D
 inverse_grid(::Type{ReciprocalLattice3D}) = BrillouinZone3D
-
-
-# invert_grid(grid::T) where T <: Grid = 
-#     inverse_grid(T)(
-#         Tuple(2b / s for (b, s) in zip(basis(grid), size(grid))), 
-#         domain(grid)
-#     )

@@ -385,7 +385,7 @@ function brillouin_zone_from_k_coordinates(
 
     # The points right next to the gamma point gives the size of the grid.
     brillouin_sizes = Tuple(find_size((k -> k[i]).(in_reciprocal_basis)) for i = 1:3)
-    BrillouinZone3D(
+    make_grid(BrillouinZone3D,
         matrix_to_vector3(reciprocal_basis * inv(diagm([brillouin_sizes...]))),
         size_to_domain(brillouin_sizes),
     )
@@ -440,7 +440,7 @@ function wannier_from_save(
         gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, w.n_band, w.n_band)
 
         load_evc!(w)
-        reciprocal_lattice = ReciprocalLattice3D(
+        reciprocal_lattice = make_grid(ReciprocalLattice3D,
             matrix_to_vector3(wave_function_basis(w)),
             size_to_domain(sizes),
         )

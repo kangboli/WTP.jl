@@ -14,7 +14,7 @@ Suppose that we have a grid
 g₁, g₂, g₃ = CARTESIAN_BASIS
 reciprocal_basis = (g₁, 2g₂, 3g₃)
 sizes = (4, 4, 4)
-lattice = ReciprocalLattice3D(reciprocal_basis, size_to_domain(sizes))
+lattice = make_grid(ReciprocalLattice3D, reciprocal_basis, size_to_domain(sizes))
 ```
 
 We can obtain a grid vector by indexing into it

@@ -16,7 +16,7 @@ Suppose that we have a reciprocal grid
 g₁, g₂, g₃ = CARTESIAN_BASIS
 reciprocal_basis = (g₁, 2g₂, 3g₃)
 sizes = (10, 10, 10)
-lattice = ReciprocalLattice3D(reciprocal_basis, size_to_domain(sizes))
+lattice = make_grid(ReciprocalLattice3D, reciprocal_basis, size_to_domain(sizes))
 ```
 
 We can create a single plane wave as
