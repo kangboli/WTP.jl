@@ -25,6 +25,13 @@ make_grid_vector(g::T, _coefficients::AbstractVector) where {T<:Grid} =
 grid(grid_vector::AbstractGridVector) = grid_vector.grid
 set_grid(grid_vector::AbstractGridVector, new_grid) = @set grid_vector.grid = new_grid
 
+miller_to_standard(grid_vector::AbstractGridVector, offsets::Tuple) =
+    miller_to_standard(size(grid(grid_vector)), tuple(coefficients(grid_vector)...), offsets)
+
+# miller_to_standard(grid_vector::AbstractGridVector{T}, offsets::AbstractGridVector{T}) where {T} =
+#     miller_to_standard(grid_vector, coefficients(offsets))
+
+
 """
     wrapped(grid_vector)
 
@@ -34,9 +41,12 @@ For grid vectors within the grid domain, this just gives the _coefficients.
 For those outside the grid domain, this move the vector by multiples of 
 the grid domain to bring it into the grid domain.
 """
-# wrapped(grid_vector::AbstractGridVector) = 
-#     coefficients(grid_vector) + overflow(grid_vector) .* [size(grid(grid_vector))...]
+wrapped(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
+     map(wrapped_1d, coefficients(grid_vector), mins(g), maxes(g))
+end
+wrapped_1d(c, l, r) = mod((c - l), r - l + 1) + l 
 
+# An alternative implementation.
 # function wrapped(grid_vector::AbstractGridVector)
 #     c = coefficients(grid_vector)
 #     d = domain(grid(grid_vector))
@@ -47,11 +57,6 @@ the grid domain to bring it into the grid domain.
 #     end
 #     return result
 # end
-
-wrapped(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
-     map(wrapped_1d, coefficients(grid_vector), mins(g), maxes(g))
-end
-wrapped_1d(c, l, r) = mod((c - l), r - l + 1) + l 
 
 """
 This gives the number of times we have to translate a vector by a grid domain to

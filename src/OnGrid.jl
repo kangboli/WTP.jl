@@ -1,8 +1,8 @@
 export OnGrid,
     grid,
-    grid!,
+    # grid!,
     translate,
-    translate!,
+    # translate!,
     translation,
     element,
     element!,
@@ -40,7 +40,7 @@ abstract type OnGrid{G<:Grid} end
 The grid on which the OnGrid object is defined.
 """
 grid(on_grid::OnGrid)::Grid = on_grid.grid
-grid!(on_grid::OnGrid, new_grid) = on_grid.grid = new_grid
+# grid!(on_grid::OnGrid, new_grid) = on_grid.grid = new_grid
 set_grid(on_grid::OnGrid, new_grid) = @set on_grid.grid = new_grid
 
 """
@@ -54,13 +54,6 @@ elements!(on_grid::OnGrid, new_elements) = on_grid.elements = new_elements
 set_elements(on_grid::OnGrid, new_elements) = @set on_grid.elements = new_elements
 
 
-
-miller_to_standard(grid_vector::AbstractGridVector, offsets::AbstractVector{Int64}) =
-    miller_to_standard(size(grid(grid_vector)), coefficients(grid_vector), offsets)
-
-miller_to_standard(grid_vector::AbstractGridVector{T}, offsets::AbstractGridVector{T}) where {T} =
-    miller_to_standard(grid_vector, coefficients(offsets))
-
 """
 Indexing an OnGrid object with a grid vector gives the 
 element on the corresponding grid point.
@@ -68,29 +61,25 @@ element on the corresponding grid point.
 function Base.getindex(on_grid::OnGrid, grid_vector::AbstractGridVector)
     overflow_detection && has_overflow(grid_vector) && error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
-    offsets = center(grid(on_grid))
-    indices = miller_to_standard(grid_vector, offsets)
+    indices = miller_to_standard(grid_vector, center(grid(on_grid)))
     return element(on_grid, indices...)
 end
 
 function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:AbstractGridVector})
     # TODO: Implement error checking.
-    offsets = center(grid(on_grid))
-    index_array = (v -> miller_to_standard(v, offsets)).(grid_vector_array)
+    index_array = (v -> miller_to_standard(v, center(grid(on_grid)))).(grid_vector_array)
     return (I -> element(on_grid, I...)).(index_array)
 end
 
 function Base.setindex!(on_grid::OnGrid, value, grid_vector::AbstractGridVector)
     overflow_detection && has_overflow(grid_vector) && error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
-    offsets = center(grid(on_grid))
-    indices = miller_to_standard(grid_vector, offsets)
+    indices = miller_to_standard(grid_vector, center(grid(on_grid)))
     element!(on_grid, value, indices...)
 end
 
 function Base.setindex!(on_grid::OnGrid, value_array::AbstractArray, grid_vector_array::AbstractArray{<:AbstractGridVector})
-    offsets = center(grid(on_grid))
-    index_array = (v -> miller_to_standard(v, offsets)).(grid_vector_array)
+    index_array = (v -> miller_to_standard(v, center(grid(on_grid)))).(grid_vector_array)
     map((v, i) -> element!(on_grid, v, i...), value_array, index_array)
 end
 
@@ -98,19 +87,18 @@ end
 Transalate/move on_grid by amount. 
 This is done virtually by shifting the domain of the underlying grid.
 """
-function translate(on_grid::OnGrid{T}, amount::AbstractGridVector{T}) where {T<:Grid}
+function translate(on_grid::OnGrid{T}, amount::AbstractVector) where {T<:Grid}
     g = grid(on_grid)
-    new_g = @set g.domain =
-        Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
-    @set on_grid.grid = new_g
+    new_g = set_domain(g, Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), amount)))
+    set_grid(on_grid, new_g)
 end
 
-function translate!(on_grid::OnGrid{T}, amount::AbstractGridVector{T}) where {T<:Grid}
-    g = grid(on_grid)
-    new_g = @set g.domain =
-        Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
-    grid!(on_grid, new_g)
-end
+# function translate!(on_grid::OnGrid{T}, amount::AbstractGridVector{T}) where {T<:Grid}
+#     g = grid(on_grid)
+#     new_g = @set g.domain =
+#         Tuple((d[1] + t, d[2] + t) for (d, t) in zip(domain(g), coefficients(amount)))
+#     grid!(on_grid, new_g)
+# end
 
 
 function Base.string(on_grid::OnGrid)
@@ -127,10 +115,7 @@ end
 The translation of an OnGrid object is the center of the underlying grid as a
 grid vector. 
 """
-translation(on_grid::OnGrid) =
-    let g = grid(on_grid)
-        make_grid_vector(g, center(g))
-    end
+translation(on_grid::OnGrid) = center(grid(on_grid))
 
 """
     wtp_normalize(on_grid)
@@ -173,17 +158,17 @@ Values outside the grid will be wrapped around.
 """
 function standardize(orbital::OnGrid)
     amount = translation(orbital)
-    non_zeros = filter(n -> n != 0, coefficients(amount))
+    non_zeros = filter(n -> n != 0, amount)
     length(non_zeros) == 0 && return orbital
 
-    new_orbital = translate(orbital, -amount)
+    new_orbital = translate(orbital, -[amount...])
     elements!(new_orbital, zeros(ComplexFxx, size(grid(orbital))))
-    circshift!(elements(new_orbital), elements(orbital), Tuple(coefficients(amount)))
+    circshift!(elements(new_orbital), elements(orbital), amount)
     return new_orbital
 end
 
 function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<:Number})
-    standardize(translate(on_grid, grid(on_grid)[translation...]))
+    standardize(translate(on_grid, translation))
 end
 
 function Base.:(>>)(on_grid::OnGrid{S}, grid_vector::AbstractGridVector{S}) where {S}
@@ -397,12 +382,11 @@ function expand(on_grid::OnGrid, factors = [2, 2, 2])
     return set_grid(new_on_grid, new_grid)
 end
 
-function vectorize(o::OnGrid)
-    # wfc(o)!==nothing ? wfc(o).evc[:, index_band(o)] : 
-    reshape(elements(o), prod(size(grid(o))))
-end
+vectorize(o::OnGrid) = reshape(elements(o), prod(size(grid(o))))
 
 """
+    center_spread(õ, r̃2)
+
 Compute the center and the spread. Here, `õ` should generally be 
 fft of the density (instead of the orbital).
 """
@@ -411,7 +395,6 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     elements!(convolved, abs.(elements(convolved)))
     linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
     r_min = grid(convolved)(linear_index_min)
-    # return r_min, convolved[r_min]
     return quadratic_fit(convolved, r_min)
 end
 

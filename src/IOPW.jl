@@ -320,7 +320,7 @@ function orbitals_from_unk(unk::UNK, homecell::HomeCell, k::KPoint)
     """
     function standard_brillouin_zone(orbital, k::KPoint)
         has_overflow(k) || return orbital
-        orbital = standardize(translate(orbital, grid(orbital)[overflow(k)...]))
+        orbital = orbital >> overflow(k)
         kpoint!(orbital, reset_overflow(k))
         return orbital
     end
@@ -465,7 +465,7 @@ function wannier_from_unk_dir(
         unk = UNK("$(unk_dir)/UNK$(lpad(w.i_kpoint, 5, "0")).1")
         gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, unk.n_band, unk.n_band)
 
-        reciprocal_lattice = ReciprocalLattice3D(
+        reciprocal_lattice = make_grid(ReciprocalLattice3D,
             matrix_to_vector3(wave_function_basis(w)),
             size_to_domain(sizes),
         )

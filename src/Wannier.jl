@@ -130,7 +130,6 @@ function outer_orbital(unk::UnkBasisOrbital{<:Grid}, G)::UnkBasisOrbital
 end
 
 function Base.getindex(wannier::Wannier, n::Integer, k::KPoint)
-    # gauge = elements(gauge(wannier))[miller_to_standard(k, translation(wannier))...]
     g = gauge(wannier)[k]
     return UnkOrbital(g[:, n], wannier[k], true, true)
 end
@@ -254,7 +253,7 @@ by phase shifting its image in the first Brillouin zone.
 function Base.getindex(u::Wannier, k::KPoint)
     flagged_overflow = has_overflow(k)
     images_in_brillouin_zone = invoke(Base.getindex, Tuple{OnGrid,KPoint}, u, flagged_overflow ? reset_overflow(k) : k)
-    translated_orbitals = flagged_overflow ? (o -> standardize(translate(o, -grid(o)[overflow(k)...]))).(images_in_brillouin_zone) : images_in_brillouin_zone
+    translated_orbitals = flagged_overflow ? (o -> o >> -overflow(k)).(images_in_brillouin_zone) : images_in_brillouin_zone
     return (o -> kpoint!(o, k)).(translated_orbitals)
 end
 

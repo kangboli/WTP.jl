@@ -1,4 +1,6 @@
-
+using WTP
+using Test
+using LinearAlgebra
 
 @testset "Single WFC" begin
     wave_functions_filename = joinpath(test_1_dir, "si.save/wfc1.dat")
@@ -28,9 +30,9 @@ end
 
 @testset "Orbital" begin
     wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
-    wannier = wannier_from_save(wave_functions_list);
-    gamma_point = grid(wannier)[0, 0, 0]
-    u1gamma = wannier[gamma_point][1]
+    ũ = wannier_from_save(wave_functions_list);
+    gamma_point = grid(ũ)[0, 0, 0]
+    u1gamma = ũ[gamma_point][1]
     @test size(grid(u1gamma)) == (24, 24, 24)
     @test ket(u1gamma) == true
     # Inner product should give the unit norm.

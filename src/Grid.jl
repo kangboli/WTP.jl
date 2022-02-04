@@ -1,7 +1,7 @@
 export Grid, domain, domain_matrix, set_domain, basis, dual_grid,
     HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
-    x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
-    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink, make_grid
+    x_min, x_max, y_min, y_max, z_min, z_max, 
+    mins, maxes, HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink, make_grid
 
 """
 Non-orthogonal 3D periodic grid that comply to the centering convention.
