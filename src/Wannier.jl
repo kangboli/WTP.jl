@@ -224,7 +224,7 @@ function (ũ::Wannier)(::Colon)
     # for k in collect(brillouin_zone)
         U = hcat(vectorize.(ũ[k])...)
         for g in collect(reciprocal_lattice)
-            grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
+            grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) + cartesian(k)))
             orbital_elements[linear_index(grid_vector), :] = U[linear_index(g), :]
         end
     end
