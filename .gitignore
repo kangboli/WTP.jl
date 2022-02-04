@@ -8,3 +8,4 @@ test/test_data/_test_*/*
 notebooks/*
 .archive/*
 docs/build
+coverage

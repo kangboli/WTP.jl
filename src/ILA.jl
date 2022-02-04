@@ -76,7 +76,7 @@ function find_shells(grid::Grid, n_shell::Int)
     shells = SortedDict{Real,Vector{KPoint}}()
     d = collect(-2*n_shell:2*n_shell)
     for i in d, j in d, k in d
-        k = grid_vector_constructor(grid, [i, j, k])
+        k = make_grid_vector(grid, [i, j, k])
         key = round(norm(cartesian(k)), digits = 5)
         haskey(shells, key) ? append!(shells[key], [k]) : shells[key] = [k]
     end
@@ -288,15 +288,16 @@ function all_center(U, scheme, ::Type{Branch}) where {Branch}
         center(M, scheme, n, Branch)
     end
 end
+struct ILAOptimizer
+    scheme::W90FiniteDifference
+    meta::Dict
+    ILAOptimizer(scheme::W90FiniteDifference) = new(scheme, Dict())
+end
+scheme(optimizer::ILAOptimizer) = optimizer.scheme
 
 function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
     brillouin_zone = grid(U)
-    Ω = f(U)
-    ∇Ω = ∇f(U)
-    ∇Ω² = ∇f²(∇Ω)
-
-    # println("Ω: $(Ω)"); println("∇Ω²: $(∇Ω²)"); println("α: $(α)");
-    # println()
+    Ω, ∇Ω, ∇Ω² = f(U), ∇f(U), ∇f²(∇Ω)
 
     function try_step(α)
         Q = Ω - 0.5α * ∇Ω²
@@ -317,17 +318,11 @@ function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
         end
         # println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
         # println()
+
         Ω_V > Q || return V, Ω_V, α, ∇Ω²
         α /= 2
     end
 end
-
-struct ILAOptimizer
-    scheme::W90FiniteDifference
-    meta::Dict
-    ILAOptimizer(scheme::W90FiniteDifference) = new(scheme, Dict())
-end
-scheme(optimizer::ILAOptimizer) = optimizer.scheme
 
 function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf, α_0 = 2) where {Branch}
     N = optimizer |> scheme |> neighbor_basis_integral |> n_band
@@ -348,7 +343,6 @@ function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf
         ∇Ω² < 1e-7 && break
         log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
     end
-    println(current_iteration)
     return U
 end
 
@@ -374,8 +368,6 @@ function log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
         c, σ = center_spread(fft(ρ, false), optimizer.meta[:r̃2])
         center_difference[i] = norm(c - ila_centers[i])
         convolutional_spread[i] = σ
-        # @printf "%.3f  " σ
-        # σ_total += σ
     end
 
     append!(optimizer.meta[:center_difference], [center_difference])
@@ -383,11 +375,3 @@ function log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
     println()
 end
 
-
-# if n_iteration == 0
-#     for α = -1e-1:5e-3:1e-1
-#         _, _, omega, _ = try_step(α)
-#         @printf "%.3f  " omega
-#     end
-#     println()
-# end

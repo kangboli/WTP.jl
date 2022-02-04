@@ -52,14 +52,6 @@ Get the index of the band of the `orbital`.
 """
 index_band(orbital) = orbital.index_band
 
-function braket(o_1::OnGrid, o_2::OnGrid)
-    !ket(o_1) && ket(o_2) || error("braket requires a bra and a ket.")
-    translation(o_1) == translation(o_2) || error("orbitals not aligned: $(translation(o_1))\n $(translation(o_2))")
-    v_1 = reshape(elements(o_1), length(grid(o_1)))
-    v_2 = reshape(elements(o_2), length(grid(o_2)))
-    return transpose(v_1) * v_2
-end
-
 
 mutable struct UnkBasisOrbital{T} <: AbstractUnkOrbital{T}
     grid::T

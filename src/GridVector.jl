@@ -1,19 +1,29 @@
 export AbstractGridVector,
     GridVector,
+    grid,
+    set_grid,
     wrapped,
     overflow,
     reset_overflow,
     has_overflow,
-    grid_vector_constructor,
+    make_grid_vector,
     add_overflow,
     cartesian,
-    linear_index,
-    grid
+    linear_index
 
 abstract type AbstractGridVector{G<:Grid} <: LinearCombination end
 
+struct GridVector{T <: Grid} <: AbstractGridVector{T}
+    grid::T
+    _coefficients::SVector{3, Int}
+    ket::Bool
+end
+
+make_grid_vector(g::T, _coefficients::AbstractVector) where {T<:Grid} =
+    GridVector{T}(g, _coefficients, true)
+
 grid(grid_vector::AbstractGridVector) = grid_vector.grid
-grid!(grid_vector::AbstractGridVector, new_grid) = grid_vector.grid = new_grid
+set_grid(grid_vector::AbstractGridVector, new_grid) = @set grid_vector.grid = new_grid
 
 """
     wrapped(grid_vector)
@@ -27,48 +37,56 @@ the grid domain to bring it into the grid domain.
 # wrapped(grid_vector::AbstractGridVector) = 
 #     coefficients(grid_vector) + overflow(grid_vector) .* [size(grid(grid_vector))...]
 
-function wrapped(grid_vector::AbstractGridVector)
-    c = coefficients(grid_vector)
-    d = domain(grid(grid_vector))
-    result = zeros(Int, 3)
-    for i = 1:3
-        (l, r) = d[i]
-        result[i] = mod((c[i] - l), r - l + 1) + l
-    end
-    return result
+# function wrapped(grid_vector::AbstractGridVector)
+#     c = coefficients(grid_vector)
+#     d = domain(grid(grid_vector))
+#     result = zeros(Int, 3)
+#     for i = 1:3
+#         (l, r) = d[i]
+#         result[i] = mod((c[i] - l), r - l + 1) + l
+#     end
+#     return result
+# end
+
+wrapped(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
+     map(wrapped_1d, coefficients(grid_vector), mins(g), maxes(g))
 end
+wrapped_1d(c, l, r) = mod((c - l), r - l + 1) + l 
 
 """
 This gives the number of times we have to translate a vector by a grid domain to
 bring them into the grid domain.
 """
-function overflow(grid_vector::AbstractGridVector)
-    c = coefficients(grid_vector)
-    d = domain(grid(grid_vector))
-    result = zeros(Int, 3)
-    for i = 1:3
-        (l, r) = d[i]
-        result[i] = fld((c[i] - l), r - l + 1)
-    end
-    return result
+overflow(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
+    map(overflow_1d, coefficients(grid_vector), mins(g), maxes(g))
 end
+overflow_1d(c, l, r) = fld((c - l), r - l + 1)
+
+# function overflow(grid_vector::AbstractGridVector)
+#     c = coefficients(grid_vector)
+#     d = domain(grid(grid_vector))
+#     result = zeros(Int, 3)
+#     for i = 1:3
+#         (l, r) = d[i]
+#         result[i] = fld((c[i] - l), r - l + 1)
+#     end
+#     return result
+# end
 
 
 """
 The gives a image of the grid_vector within the grid domain.
 """
 function reset_overflow(grid_vector::AbstractGridVector) 
-    grid_vector_constructor(grid(grid_vector), wrapped(grid_vector))
+    make_grid_vector(grid(grid_vector), wrapped(grid_vector))
 end
 
 """
 This moves the grid_vector by some multiples of the grid domain.
 """
 function add_overflow(grid_vector::AbstractGridVector, overflow) 
-    grid_vector_constructor(grid(grid_vector), [
-        c + o * s for
-        (o, c, s) in zip(overflow, coefficients(grid_vector), size(grid(grid_vector)))
-    ])
+    new_coefficients = map((o, c, s)->c + o * s, overflow, coefficients(grid_vector), SVector(size(grid(grid_vector))))
+    make_grid_vector(grid(grid_vector), new_coefficients)
 end
 
 """
@@ -78,34 +96,22 @@ has_overflow(grid_vector::AbstractGridVector) =
     any(f -> f != 0, overflow(grid_vector))
 
 
-struct GridVector{T} <: AbstractGridVector{T}
-    grid::T
-    _coefficients::Vector{Int}
-    ket::Bool
-end
-
 """
 Return the basis as they are internally stored (as kets).
 """
 _basis(grid_vector::AbstractGridVector) = basis(grid(grid_vector))
 
-function add(grid_vector_1::AbstractGridVector, grid_vector_2::AbstractGridVector)
-    ket(grid_vector_1) == ket(grid_vector_2) || error("Adding a bra to a ket.")
+function add(grid_vector_1::T, grid_vector_2::T) where T <: AbstractGridVector
+    # ket(grid_vector_1) == ket(grid_vector_2) || error("Adding a bra to a ket.")
     grid(grid_vector_1) == grid(grid_vector_2) || error("Grid vectors defined on different grid.")
-    return typeof(grid_vector_1)(
-        grid(grid_vector_1),
-        coefficients(grid_vector_1) + coefficients(grid_vector_2),
-        ket(grid_vector_1),
-    )
+    new_coefficients = coefficients(grid_vector_1) + coefficients(grid_vector_2)
+    return T(grid(grid_vector_1), new_coefficients, ket(grid_vector_1))
 end
 
-negate(grid_vector_1::AbstractGridVector) =
-    typeof(grid_vector_1)(grid(grid_vector_1), -coefficients(grid_vector_1), ket(grid_vector_1))
-mul(s::Number, l1::AbstractGridVector) = typeof(l1)(grid(l1), s * coefficients(l1), ket(l1))
-minus(grid_vector_1::AbstractGridVector, grid_vector_2::AbstractGridVector) = add(grid_vector_1, negate(grid_vector_2))
-
-grid_vector_constructor(g::T, _coefficients) where {T<:Grid} =
-    GridVector{T}(g, _coefficients, true)
+negate(grid_vector_1::T) where T <: AbstractGridVector =
+    T(grid(grid_vector_1), -coefficients(grid_vector_1), ket(grid_vector_1))
+mul(s::Int, l1::T) where T <: AbstractGridVector = T(grid(l1), s * coefficients(l1), ket(l1))
+# minus(grid_vector_1::T, grid_vector_2::T) where T <: AbstractGridVector = add(grid_vector_1, negate(grid_vector_2))
 
 function Base.show(io::IO, grid_vector::AbstractGridVector)
     print(io, "$(typeof(grid_vector)):\n")
@@ -113,11 +119,9 @@ function Base.show(io::IO, grid_vector::AbstractGridVector)
     print(io, indent("_coefficients: $(coefficients(grid_vector))") * "\n")
 end
 
-Base.:(==)(grid_vector_1::AbstractGridVector, grid_vector_2::AbstractGridVector) =
+Base.:(==)(grid_vector_1::T, grid_vector_2::T) where T <: AbstractGridVector =
     coefficients(grid_vector_1) == coefficients(grid_vector_2) &&
-    ## TODO: Put this back and figure out if it breaks things.
-    # grid(grid_vec_1) == grid(grid_vec_2) &&
-    ket(grid_vector_1) == ket(grid_vector_2)
+    grid(grid_vector_1) == grid(grid_vector_2) 
 
 Base.hash(grid_vector::AbstractGridVector) = hash(coefficients(grid_vector)) + hash(ket(grid_vector))
 
@@ -126,8 +130,9 @@ Base.hash(grid_vector::AbstractGridVector) = hash(coefficients(grid_vector)) + h
 
 The Cartesian coordinates of a grid vector.
 """
-cartesian(grid_vector::AbstractGridVector)::Vector{Number} =
-    basis_matrix(grid(grid_vector)) * coefficients(grid_vector)
+cartesian(grid_vector::AbstractGridVector)::Vector{Number} = let g = grid(grid_vector)
+    basis_matrix(g) * (coefficients(grid_vector) + SVector(center(g)))
+end
 # cartesian(grid_vec::AbstractGridVector)::Vector{Number} = basis_transform(
 #     coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
 
@@ -142,6 +147,6 @@ Indexing the underlying grid with this integer gives back
 the grid vector.
 """
 linear_index(grid_vector::AbstractGridVector) =
-    let sizes = size(grid(grid_vector))
-        three_to_one(miller_to_standard(sizes, coefficients(grid_vector))..., sizes)
+    let g = grid(grid_vector), s = size(g)
+        three_to_one(miller_to_standard(s, tuple(coefficients(grid_vector)...), center(g))..., s)
     end

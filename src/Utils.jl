@@ -1,4 +1,6 @@
-export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set
+using Coverage, Dates
+
+export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set, process_coverage
 
 """
     size_to_domain(sizes)
@@ -56,79 +58,63 @@ with offsets go from -n-o to n-o.
 """
 
 
-"""
-    miller_to_standard(sizes, indices)
+# """
+#     miller_to_standard(sizes, indices)
 
-Convert a set of miller indices to standard indices without offset. 
-"""
-miller_to_standard(
-    sizes,
-    indices::AbstractVector{<:Integer},
-) = collect(
-    Iterators.map(
-        (m, s) -> m >= 0 ? m + 1 : m + s + 1,
-        indices,
-        sizes,
-    ),
-)
+# Convert a set of miller indices to standard indices without offset. 
+# """
+# miller_to_standard(
+#     sizes::Tuple,
+#     indices::Tuple,
+# ) = collect(
+#     Iterators.map(
+#         (m, s) -> m >= 0 ? m + 1 : m + s + 1,
+#         indices,
+#         sizes,
+#     ),
+# )
 
 """
     miller_to_standard(sizes, indices, offsets)
 
 Convert a set of miller indices to standard indices. 
 """
-miller_to_standard(
-    sizes,
-    indices::AbstractVector{<:Integer},
-    offsets::AbstractVector{<:Integer},
-) = collect(
-    Iterators.map(
-        (m, o, s) -> m + o >= 0 ? m + o + 1 : m + o + s + 1,
-        indices,
-        offsets,
-        sizes,
-    ),
-)
+miller_to_standard(sizes::Tuple, indices::Tuple, offsets::Tuple) = 
+    map(miller_to_standard_1d, indices, offsets, sizes)
+
+miller_to_standard_1d(m::Int, o::Int, s::Int) = m + o >= 0 ? m + o + 1 : m + o + s + 1
 
 
-"""
-    standard_to_miller(sizes, indices)
+# """
+#     standard_to_miller(sizes, indices)
 
-Convert a set of standard indices to miller indices without offsets.
-"""
-standard_to_miller(
-    sizes,
-    indices::AbstractVector{<:Integer},
-) = collect(
-    Iterators.map(
-        (m, s) -> let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
-            m <= z ? m - 1 : m - 1 - s
-        end,
-        indices,
-        offsets,
-        sizes,
-    ),
-)
+# Convert a set of standard indices to miller indices without offsets.
+# """
+# standard_to_miller(
+#     sizes::Tuple,
+#     indices::Tuple,
+# ) = collect(
+#     Iterators.map(
+#         (m, s) -> let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
+#             m <= z ? m - 1 : m - 1 - s
+#         end,
+#         indices,
+#         offsets,
+#         sizes,
+#     ),
+# )
 
 """
     standard_to_miller(sizes, indices, offsets)
 
 Convert a set of standard indices to miller indices.
 """
-standard_to_miller(
-    sizes,
-    indices::AbstractVector{<:Integer},
-    offsets::AbstractVector{<:Integer},
-) = collect(
-    Iterators.map(
-        (m, o, s) -> let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
-            m <= z ? m - 1 - o : m - 1 - s - o
-        end,
-        indices,
-        offsets,
-        sizes,
-    ),
-)
+standard_to_miller(sizes::Tuple, indices::Tuple, offsets::Tuple) = 
+    map(standard_to_miller_1d, indices, offsets, sizes)
+
+standard_to_miller_1d(m::Int, o::Int, s::Int) = let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
+    return m <= z ? m - 1 - o : m - 1 - s - o
+end
 
 
 """
@@ -143,12 +129,12 @@ The conversion is best characterized as the following relation.
 That is indexing with a 3D index and a 1D index should be identical 
 if the two indices are mapped to each other with the following functions.
 """
-one_to_three(i::Integer, sizes) =
-    let (nx, ny, nz) = sizes
+one_to_three(i::Integer, sizes::NTuple{3, Int}) =
+    let (nx, ny, _) = sizes
         i = i - 1
         iz, yx = i ÷ (ny * nx) + 1, rem(i, ny * nx)
         iy, ix = yx ÷ nx + 1, rem(yx, nx) + 1
-        [ix, iy, iz]
+        (ix, iy, iz)
     end
 
 """
@@ -160,7 +146,7 @@ The conversion is best characterized as the following relation.
 
 >>> reshape(A, prod(sizes))[three_to_one(i, j, k, sizes)] = A[i, j, k]
 """
-three_to_one(x::Integer, y::Integer, z::Integer, sizes) =
+three_to_one(x::Integer, y::Integer, z::Integer, sizes::NTuple{3, Int}) =
     let (nx, ny, _) = sizes
         (z - 1) * ny * nx + (y - 1) * nx + x
     end
@@ -185,4 +171,11 @@ end
 function set(object, modify_field::Symbol, value)
     values = [f == modify_field ? value : getfield(object, f) for f in fieldnames(typeof(object))]
     return typeof(object)(values...)
+end
+
+function process_coverage()
+    coverage = process_folder("src")
+    LCOV.writefile("coverage/lcov_$(now()).info", coverage)
+    clean_folder("src")
+    clean_folder("test")
 end

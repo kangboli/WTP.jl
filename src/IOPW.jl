@@ -238,7 +238,7 @@ function single_orbital_from_wave_functions(
 
     Threads.@threads for i = 1:wave_function.max_n_planewaves
         coefficients = wave_function.miller[:, i] + overflow(k)
-        g = grid_vector_constructor(reciprocal_lattice, coefficients)
+        g = make_grid_vector(reciprocal_lattice, coefficients)
         orbital[g] = wave_function.evc[i, n]
     end
 
@@ -371,19 +371,17 @@ function brillouin_zone_from_k_coordinates(
 )
     gamma_point = k_coordinates[argmin(norm.(k_coordinates))]
     offset_kpoints = [k_coordinates[i] - gamma_point for i = 1:length(k_coordinates)]
-    # Represents the kpoint in the reciprocal basis.
     in_reciprocal_basis = [reciprocal_basis \ k for k in offset_kpoints]
 
     """
-    Find the size of a 1D grid given the set of kpoint coordinate along that direction
-    in the reciprocal basis.
+    Find the size of a 1D grid given the set of kpoint coordinate along that
+    direction in the reciprocal basis.
     """
     function find_size(v::Vector{Float64})
         non_zeros = collect(filter((x) -> !isapprox(x, 0, atol = 1e-7), v))
         return length(non_zeros) == 0 ? 1 : round(1 / min(non_zeros...))
     end
 
-    # The points right next to the gamma point gives the size of the grid.
     brillouin_sizes = Tuple(find_size((k -> k[i]).(in_reciprocal_basis)) for i = 1:3)
     make_grid(BrillouinZone3D,
         matrix_to_vector3(reciprocal_basis * inv(diagm([brillouin_sizes...]))),
@@ -582,8 +580,7 @@ function AMN(amn_filename::String)
 
     function update_gauge(i_kpoint, m, n, value)
         lock(c) do
-            haskey(amn.gauge, i_kpoint) ||
-                (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_band)))
+            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_band)))
             amn.gauge[i_kpoint][m, n] = value
         end
     end
