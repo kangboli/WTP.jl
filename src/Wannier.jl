@@ -150,7 +150,7 @@ function phase_factors(wannier::Wannier)
     supercell = expand(homecell, factors)
     k_coordinates = hcat(cartesian.(brillouin_zone(1:length(brillouin_zone)))...)
     r_coordinates = hcat(cartesian.(supercell(1:length(supercell)))...)
-    @time phase = exp.((1im * r_coordinates)' * k_coordinates)
+    @time phase = exp.(r_coordinates' * (1im * k_coordinates))
     @time SimpleFunctionOnGrid(brillouin_zone, reshape((n ->
                 SimpleFunctionOnGrid(supercell, reshape(phase[:, n], size(supercell)),
                     true)).(1:length(brillouin_zone)), size(brillouin_zone)), true)
