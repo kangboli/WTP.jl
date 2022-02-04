@@ -42,8 +42,8 @@ Create a copy of `grid` with its domain set to `new_domain`.
 """
 function set_domain(grid::Grid, new_domain::Tuple)
     grid = @set grid.domain = new_domain
-    @set grid._size = _compute_size(new_domain)
-    @set grid._domain_matrix = _convert_domain_to_matrix(new_domain)
+    grid = @set grid._size = _compute_size(new_domain)
+    grid = @set grid._domain_matrix = _convert_domain_to_matrix(new_domain)
 end
 
 

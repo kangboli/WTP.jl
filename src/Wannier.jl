@@ -4,6 +4,8 @@ export Wannier,
     gauge,
     gauge!,
     set_gauge,
+    commit_gauge,
+    commit_gauge!,
     NeighborIntegral,
     find_neighbors,
     integrals,
@@ -160,6 +162,8 @@ function phase_factors(wannier::Wannier)
     # end
 end
 
+commit_gauge(u::Wannier) = commit_gauge!(deepcopy(u))
+
 function commit_gauge!(u::Wannier)
     brillouin_zone = grid(u)
     g = orbital_grid(u)
@@ -217,6 +221,7 @@ function (ũ::Wannier)(::Colon)
 
     orbital_elements = zeros(ComplexFxx, length(brillouin_zone) * length(reciprocal_lattice), n_band(ũ))
     Threads.@threads for k in collect(brillouin_zone)
+    # for k in collect(brillouin_zone)
         U = hcat(vectorize.(ũ[k])...)
         for g in collect(reciprocal_lattice)
             grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
@@ -226,20 +231,20 @@ function (ũ::Wannier)(::Colon)
 
     return [UnkBasisOrbital(reciprocal_supercell, reshape(orbital_elements[:, n],
             size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n) |> wtp_normalize! for n in 1:n_band(ũ)]
-
-    # function bloch_orbital_sum(n)
-    #     target_orbital = UnkBasisOrbital(reciprocal_supercell, zeros(ComplexFxx, size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n)
-    #     Threads.@threads for k in collect(brillouin_zone)
-    #         for g in collect(reciprocal_lattice)
-    #             grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
-    #             target_orbital[grid_vector] = ũ[k][n][g]
-    #         end
-    #     end
-    #     return target_orbital |> wtp_normalize!
-    # end
-    # @time result = bloch_orbital_sum(1)
-    # return result
 end
+
+# function bloch_orbital_sum(n)
+#     target_orbital = UnkBasisOrbital(reciprocal_supercell, zeros(ComplexFxx, size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n)
+#     Threads.@threads for k in collect(brillouin_zone)
+#         for g in collect(reciprocal_lattice)
+#             grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
+#             target_orbital[grid_vector] = ũ[k][n][g]
+#         end
+#     end
+#     return target_orbital |> wtp_normalize!
+# end
+# @time result = bloch_orbital_sum(1)
+# return result
 
 """
 Indexing a wannier object with a kpoint gives the set of basis 

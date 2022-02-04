@@ -55,7 +55,7 @@ u = ifft(ũ)
 u = set_gauge(u, U)
 phase = phase_factors(u)
 
-wannier_orbitals = u(:, phase)
+wannier_orbitals = [u(i, phase) for i = 1:4]
 
 supercell = expand(orbital_grid(u), [size(brillouin_zone)...])
 r2 = map(supercell) do r

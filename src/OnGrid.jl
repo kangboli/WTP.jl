@@ -395,7 +395,8 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     elements!(convolved, abs.(elements(convolved)))
     linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
     r_min = grid(convolved)(linear_index_min)
-    return quadratic_fit(convolved, r_min)
+    r, σ= quadratic_fit(convolved, r_min)
+    return -r, σ
 end
 
 # function efficient_r2(g::HomeCell)
