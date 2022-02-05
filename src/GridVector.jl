@@ -41,8 +41,14 @@ For grid vectors within the grid domain, this just gives the _coefficients.
 For those outside the grid domain, this move the vector by multiples of 
 the grid domain to bring it into the grid domain.
 """
-wrapped(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
-     map(wrapped_1d, coefficients(grid_vector), mins(g), maxes(g))
+function wrapped(grid_vector::AbstractGridVector) 
+    g = grid(grid_vector)
+    D = n_dims(typeof(g))
+    result = zeros(Int, D)
+    for i = 1:D
+        result[i] = wrapped_1d(coefficients(grid_vector)[i], mins(g)[i], maxes(g)[i])
+    end
+    return result
 end
 wrapped_1d(c, l, r) = mod((c - l), r - l + 1) + l 
 
@@ -62,8 +68,14 @@ wrapped_1d(c, l, r) = mod((c - l), r - l + 1) + l
 This gives the number of times we have to translate a vector by a grid domain to
 bring them into the grid domain.
 """
-overflow(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
-    map(overflow_1d, coefficients(grid_vector), mins(g), maxes(g))
+function overflow(grid_vector::AbstractGridVector) 
+    g = grid(grid_vector)
+    D = n_dims(typeof(g))
+    result = zeros(Int, D)
+    for i = 1:D
+        result[i] = overflow_1d(coefficients(grid_vector)[i], mins(g)[i], maxes(g)[i])
+    end
+    return result
 end
 overflow_1d(c, l, r) = fld((c - l), r - l + 1)
 
@@ -125,10 +137,9 @@ function Base.show(io::IO, grid_vector::AbstractGridVector)
 end
 
 Base.:(==)(grid_vector_1::T, grid_vector_2::T) where T <: AbstractGridVector =
-    coefficients(grid_vector_1) == coefficients(grid_vector_2) &&
-    grid(grid_vector_1) == grid(grid_vector_2) 
+    coefficients(grid_vector_1) == coefficients(grid_vector_2) # && grid(grid_vector_1) == grid(grid_vector_2) 
 
-Base.hash(grid_vector::AbstractGridVector) = hash(coefficients(grid_vector)) + hash(ket(grid_vector))
+Base.hash(grid_vector::AbstractGridVector)::UInt = linear_index(grid_vector) |> abs
 
 """
     cartesian(grid_vector)

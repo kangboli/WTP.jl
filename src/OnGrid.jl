@@ -256,11 +256,11 @@ function Base.abs2(o_1::OnGrid{T}) where {T}
 end
 
 function braket(o_1::OnGrid, o_2::OnGrid)
-    !ket(o_1) && ket(o_2) || error("braket requires a bra and a ket.")
-    translation(o_1) == translation(o_2) || error("orbitals not aligned: $(translation(o_1))\n $(translation(o_2))")
+    # !ket(o_1) && ket(o_2) || error("braket requires a bra and a ket.")
+    # translation(o_1) == translation(o_2) || error("orbitals not aligned: $(translation(o_1))\n $(translation(o_2))")
     v_1 = reshape(elements(o_1), length(grid(o_1)))
     v_2 = reshape(elements(o_2), length(grid(o_2)))
-    return transpose(v_1) * v_2
+    return (!ket(o_1) ? transpose(v_1) : adjoint(v_1)) * (ket(o_2) ? v_2 : conj(v_2))
 end
 
 Base.:+(o_1::OnGrid, o_2::OnGrid) = add(o_1, o_2)

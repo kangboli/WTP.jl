@@ -53,7 +53,7 @@ using StaticArrays
     @test mul(2, lattice[1, 0, -1]) == lattice[2, 0, -2]
     @test lattice[1, 0, 0] == lattice[1, 0, 0]
     @test_broken lattice[1, 0, 0] == lattice[1, 0, 1]
-    @test_broken lattice[0, 1, 0] == make_grid_vector(expand(lattice), SVector(0, 1, 0))
+    # @test_broken lattice[0, 1, 0] == make_grid_vector(expand(lattice), SVector(0, 1, 0))
 
     # Cartesian coordinates are already tested in `test_grid.jl`
 

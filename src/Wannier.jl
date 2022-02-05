@@ -11,7 +11,8 @@ export Wannier,
     integrals,
     orbital_grid,
     gauge_transform,
-    phase_factors
+    phase_factors,
+    n_band
 
 """
 The gauge ``U^{k}`` is set of matrices, where each matrix
@@ -277,25 +278,31 @@ integrals(n::NeighborIntegral) = n.integrals
 
 function Base.hash(p::Pair{<:KPoint,<:KPoint})
     m, n = p
-    return hash(m) + hash(n)
+    a_nice_prime_number = 7
+    return hash(m) * a_nice_prime_number + hash(n) 
+end
+
+function Base.:(==)(p_1::Pair{<:KPoint, <:KPoint}, p_2::Pair{<:KPoint, <:KPoint})
+    m_1, n_1 = p_1
+    m_2, n_2 = p_2
+    return m_1 == m_2 && n_1 == n_2
 end
 
 function Base.getindex(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KPoint)
-    k_1 == k_2 && return I
+    # coefficients(k_1) == coefficients(k_2) && return I
     i = integrals(neighbor_integral)
     haskey(i, k_1 => k_2) && return i[k_1=>k_2]
-    haskey(i, k_2 => k_1) && return adjoint(i[k_2=>k_1])
-    return nothing
+    return adjoint(i[k_2=>k_1])
 end
 
 function Base.setindex!(neighbor_integral::NeighborIntegral, value::AbstractMatrix{ComplexFxx}, g::Vararg{<:KPoint})
     g_1, g_2 = g
+    integrals(neighbor_integral)[g_1=>g_2] = value
+end
+
+function Base.haskey(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KPoint)
     i = integrals(neighbor_integral)
-    if haskey(i, g_2 => g_1)
-        i[g_2=>g_1] = adjoint(value)
-    else
-        i[g_1=>g_2] = value
-    end
+    return haskey(i, k_1 => k_2) || haskey(i, k_2 => k_1)
 end
 
 """

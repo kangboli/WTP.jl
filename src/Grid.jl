@@ -1,6 +1,6 @@
 export Grid, domain, domain_matrix, set_domain, basis, dual_grid,
     HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
-    x_min, x_max, y_min, y_max, z_min, z_max, 
+    x_min, x_max, y_min, y_max, z_min, z_max,
     mins, maxes, HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink, make_grid
 
 """
@@ -31,9 +31,9 @@ The result is a tuple of `n_dim` tuples in the form
 """
 domain(grid::Grid) = grid.domain
 
-_convert_domain_to_matrix(domain) = SMatrix{3, 2, Int}(vcat([[d[1] d[2]] for d in domain]...))
+_convert_domain_to_matrix(domain) = SMatrix{3,2,Int}(vcat([[d[1] d[2]] for d in domain]...))
 
-domain_matrix(grid::Grid) = grid._domain_matrix
+domain_matrix(grid::Grid) = grid._cache._domain_matrix
 
 """
     set_domain(grid, new_domain)
@@ -42,18 +42,26 @@ Create a copy of `grid` with its domain set to `new_domain`.
 """
 function set_domain(grid::Grid, new_domain::Tuple)
     grid = @set grid.domain = new_domain
-    grid = @set grid._size = _compute_size(new_domain)
-    grid = @set grid._domain_matrix = _convert_domain_to_matrix(new_domain)
+    size = _compute_size(new_domain)
+    domain_matrix = _convert_domain_to_matrix(new_domain)
+    grid = @set grid._cache = GridCache(
+        basis_matrix(grid),
+        domain_matrix,
+        size,
+        _compute_center(grid._cache._size, new_domain),
+        tuple(domain_matrix[:, 1]...),
+        tuple(domain_matrix[:, 2]...)
+    )
+    return grid
 end
 
 
-
-x_min(grid::Grid) = domain(grid)[1][1]
-x_max(grid::Grid) = domain(grid)[1][2]
-y_min(grid::Grid) = domain(grid)[2][1]
-y_max(grid::Grid) = domain(grid)[2][2]
-z_min(grid::Grid) = domain(grid)[3][1]
-z_max(grid::Grid) = domain(grid)[3][2]
+x_min(grid::Grid) = mins(grid)[1]
+x_max(grid::Grid) = maxes(grid)[1]
+y_min(grid::Grid) = mins(grid)[2]
+y_max(grid::Grid) = maxes(grid)[2]
+z_min(grid::Grid) = mins(grid)[3]
+z_max(grid::Grid) = maxes(grid)[3]
 
 """
     expand(grid, factors=[2, 2, 2])
@@ -77,14 +85,14 @@ homecell = make_grid(HomeCell3D, CARTESIAN_BASIS, ((-2, 1), (-2, 1), (-2, 1)))
 mins(homecell) # gives [-2, -2, -2]
 ```
 """
-mins(grid::Grid) = domain_matrix(grid)[:, 1]
+mins(grid::Grid) = grid._cache._mins # domain_matrix(grid)[:, 1]
 
 """
     maxes(grid)
 
 Similar to `mins(grid)`, but gives the maximum indices instead.
 """
-maxes(grid::Grid) = domain_matrix(grid)[:, 2]
+maxes(grid::Grid) = grid._cache._maxes # domain_matrix(grid)[:, 2]
 
 """
     n_dims(T)
@@ -106,7 +114,8 @@ The center of a grid. This should be a tuple of zeros for a grid that complies
 to the centering convention.  The result will be a tuple of `n_dims` integers.
 A tuple instead of a vector is used for performance reasons. 
 """
-center(grid::Grid)::Tuple = map(_center_1d, size(grid), domain(grid))
+center(grid::Grid)::Tuple = grid._cache._center
+_compute_center(size::Tuple, domain::Tuple)::Tuple = map(_center_1d, size, domain)
 _center_1d(s, d)::Int = iseven(s) ? (sum(d) + 1) ÷ 2 : sum(d) ÷ 2
 
 # function center(grid::T) where T <: Grid
@@ -140,9 +149,9 @@ basis(grid::Grid) = grid.basis
 The basis vector as a matrix, where each column is a basis vector.
 The matrix is cached because this has an impact on performance.
 """
-basis_matrix(grid::Grid) = grid._basis_matrix
+basis_matrix(grid::Grid) = grid._cache._basis_matrix
 
-Base.:(==)(g_1::T, g_2::T) where T <: Grid = basis(g_1) == basis(g_2) && domain(g_1) == domain(g_2)
+Base.:(==)(g_1::T, g_2::T) where {T<:Grid} = basis(g_1) == basis(g_2) && domain(g_1) == domain(g_2)
 
 _compute_size(domain) = Tuple(d[2] - d[1] + 1 for d in domain)
 
@@ -151,7 +160,7 @@ _compute_size(domain) = Tuple(d[2] - d[1] + 1 for d in domain)
 
 The size of the grid. The result is a tuple of `n_dims` integers.
 """
-Base.size(g::Grid)::Tuple = g._size
+Base.size(g::Grid)::Tuple = g._cache._size
 
 """
     length(g)
@@ -268,7 +277,7 @@ transform_grid(grid::T) where {T<:Grid} =
 Snap a coordinate to a grid point.  
 """
 snap(grid::Grid, point::AbstractVector) =
-    make_grid_vector(grid, (i->round(Int, i)).((basis_matrix(grid) \ point)))
+    make_grid_vector(grid, (i -> round(Int, i)).((basis_matrix(grid) \ point)))
 
 
 """
@@ -306,6 +315,15 @@ function Base.show(io::IO, ::MIME"text/html", grid::Grid)
     println(io, html(grid))
 end
 
+mutable struct GridCache
+    _basis_matrix::SMatrix{3,3,Float64}
+    _domain_matrix::SMatrix{3,2,Int}
+    _size::NTuple{3,Integer}
+    _center::NTuple{3,Integer}
+    _mins::NTuple{3,Integer}
+    _maxes::NTuple{3,Integer}
+end
+
 """
 There are four basic grids (two pairs of dual grids) in Condensed Phase on which
 most physical concepts are defined. Generic grid operations should be defined
@@ -326,11 +344,9 @@ The home cell in 3D. The ``u_{nk}`` orbitals in the real space is represented as
 function on this grid. 
 """
 struct HomeCell3D <: HomeCell
-    basis::NTuple{3 ,Vector3}
-    domain::NTuple{3, NTuple{2,Integer}}
-    _basis_matrix::SMatrix{3, 3, Float64}
-    _domain_matrix::SMatrix{3, 2, Int}
-    _size::NTuple{3,Integer}
+    basis::NTuple{3,Vector3}
+    domain::NTuple{3,NTuple{2,Integer}}
+    _cache::GridCache
 end
 
 abstract type ReciprocalLattice <: Grid end
@@ -347,11 +363,9 @@ reciprocal_lattice = transform_grid(homecell)
 ```
 """
 struct ReciprocalLattice3D <: ReciprocalLattice
-    basis::NTuple{3 ,Vector3}
-    domain::NTuple{3, NTuple{2,Integer}}
-    _basis_matrix::SMatrix{3, 3, Float64}
-    _domain_matrix::SMatrix{3, 2, Int}
-    _size::NTuple{3,Integer}
+    basis::NTuple{3,Vector3}
+    domain::NTuple{3,NTuple{2,Integer}}
+    _cache::GridCache
 end
 
 abstract type BrillouinZone <: Grid end
@@ -359,11 +373,9 @@ abstract type BrillouinZone <: Grid end
 The 3D Brillouin zone. The usage is the same of `HomeCell3D`.
 """
 struct BrillouinZone3D <: BrillouinZone
-    basis::NTuple{3 ,Vector3}
-    domain::NTuple{3, NTuple{2,Integer}}
-    _basis_matrix::SMatrix{3, 3, Float64}
-    _domain_matrix::SMatrix{3, 2, Int}
-    _size::NTuple{3,Integer}
+    basis::NTuple{3,Vector3}
+    domain::NTuple{3,NTuple{2,Integer}}
+    _cache::GridCache
 end
 
 abstract type RealLattice <: Grid end
@@ -371,15 +383,23 @@ abstract type RealLattice <: Grid end
 The 3D crystal lattice. This is the dual grid of `BrillouinZone3D`.
 """
 struct RealLattice3D <: RealLattice
-    basis::NTuple{3 ,Vector3}
-    domain::NTuple{3, NTuple{2,Integer}}
-    _basis_matrix::SMatrix{3, 3, Float64}
-    _domain_matrix::SMatrix{3, 2, Int}
-    _size::NTuple{3, Integer}
+    basis::NTuple{3,Vector3}
+    domain::NTuple{3,NTuple{2,Integer}}
+    _cache::GridCache
 end
 
 function make_grid(::Type{T}, basis, domain) where {T<:Grid}
-    return T(basis, domain, vector3_to_matrix(basis), _convert_domain_to_matrix(domain),  _compute_size(domain))
+    size = _compute_size(domain)
+    domain_matrix = _convert_domain_to_matrix(domain)
+    cache = GridCache(vector3_to_matrix(basis),
+        domain_matrix,
+        size,
+        _compute_center(size, domain),
+        tuple(domain_matrix[:, 1]...),
+        tuple(domain_matrix[:, 2]...)
+    )
+
+    return T(basis, domain, cache)
 end
 
 dual_grid(::Type{HomeCell3D}) = ReciprocalLattice3D

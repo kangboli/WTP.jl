@@ -202,15 +202,16 @@ function populate_integral_table!(scheme::FiniteDifference, u::Wannier)
     Compute the mmn matrix between k1 and k2.
     """
     function mmn_matrix(k_1::T, k_2::T) where {T<:AbstractGridVector{<:BrillouinZone}}
-        U_adjoint = vcat(adjoint.(vectorize.(u[k_1]))...)
-        V = hcat(map(vectorize, u[k_2])...)
-        return U_adjoint * V
+        U = hcat(vectorize.(u[k_1])...)
+        V = hcat(vectorize.(u[k_2])...)
+        return adjoint(U) * V
+        # return [braket(m, n) for m in u[k_1], n in u[k_2]]
     end
 
     @showprogress for k in collect(brillouin_zone)
         for neighbor in find_neighbors(k, scheme)
-            M[neighbor, k] !== nothing && continue
             # M[k, neighbor] = adjoint(U[k]) * mmn_matrix(k, neighbor) * U[neighbor]
+            haskey(M, k, neighbor) && continue
             M[k, neighbor] = mmn_matrix(k, neighbor)
         end
     end
@@ -237,7 +238,7 @@ Gauge gradient for the finite difference.
 function gauge_gradient(U::Gauge, scheme::W90FiniteDifference, brillouin_zone::B, ::Type{BranchNaive}) where {B<:BrillouinZone}
     M = gauge_transform(neighbor_basis_integral(scheme), U)
     N = n_band(M)
-    c = (n -> center(M, scheme, n)).(1:N)
+    c = (n -> center(M, scheme, n, BranchNaive)).(1:N)
 
     G = k -> sum(zip(weights(scheme), shells(scheme))) do (w, shell)
         sum(shell) do b
@@ -297,7 +298,8 @@ scheme(optimizer::ILAOptimizer) = optimizer.scheme
 
 function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
     brillouin_zone = grid(U)
-    Ω, ∇Ω, ∇Ω² = f(U), ∇f(U), ∇f²(∇Ω)
+    Ω, ∇Ω = f(U), ∇f(U)
+    ∇Ω² = ∇f²(∇Ω)
 
     function try_step(α)
         Q = Ω - 0.5α * ∇Ω²
@@ -312,8 +314,7 @@ function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
 
         discontinuous = ∇Ω² > 1e-7 && α < 1e-3
         discontinuous && return let α = α_0, (V, Ω_V, _) = try_step(α)
-            println("Discontinuous!")
-            println()
+            print(" ⤫ ")
             V, Ω_V, α, ∇Ω²
         end
         # println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
@@ -324,7 +325,7 @@ function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
     end
 end
 
-function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf, α_0 = 2) where {Branch}
+function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf, α_0 = 2, ϵ=1e-7, logging=false) where {Branch}
     N = optimizer |> scheme |> neighbor_basis_integral |> n_band
     U = U_0
     brillouin_zone = grid(U)
@@ -340,22 +341,23 @@ function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf
     while n_iteration > current_iteration
         current_iteration += 1
         U, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², 2α, α_0 = α_0)
-        ∇Ω² < 1e-7 && break
-        log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
+        ∇Ω² < ϵ && break
+        logging && log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
     end
     return U
 end
 
 function log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
+    N = optimizer |> scheme |> neighbor_basis_integral |> n_band
     append!(optimizer.meta[:ila_spread], [all_spread(U, scheme(optimizer), Branch)])
     mod(current_iteration, 10) == 0 || return
 
     println("Ω: $(Ω)")
     println("∇Ω²: $(∇Ω²)")
     println("α: $(α)")
-    u = set_gauge(optimizer.meta[:u], U)
-    wannier_orbitals = u(:, optimizer.meta[:phase])
-    densities = abs2.(wannier_orbitals)
+    ũ = set_gauge(optimizer.meta[:ũ], U)
+    wannier_orbitals = commit_gauge(ũ)(:)
+    densities = abs2.(ifft.(wannier_orbitals))
     # σ_total = 0
     # println("Convolutional: $(σ_total)")
     # @printf "ILA        : %.3f  %.3f  %.3f  %.3f\n" ...
@@ -369,7 +371,6 @@ function log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
         center_difference[i] = norm(c - ila_centers[i])
         convolutional_spread[i] = σ
     end
-
     append!(optimizer.meta[:center_difference], [center_difference])
     append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
     println()

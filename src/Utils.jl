@@ -175,6 +175,8 @@ end
 
 function process_coverage()
     coverage = process_folder("src")
+    covered, total = get_summary(coverage)
+    @printf("Coverage is at %.2f percent\n", 100*covered/total)
     LCOV.writefile("coverage/lcov_$(now()).info", coverage)
     clean_folder("src")
     clean_folder("test")

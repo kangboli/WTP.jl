@@ -24,7 +24,7 @@ using LinearAlgebra
 
     ## Construct the scheme.
 
-    scheme = W90FiniteDifference3D(wannier)
+    scheme = W90FiniteDifference3D(wannier);
 
     ## Apply the gauge transform on the basis integrals to get the neighbor integrals.
 
