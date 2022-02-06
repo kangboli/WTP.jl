@@ -231,7 +231,7 @@ function (ũ::Wannier)(::Colon)
     end
 
     return [UnkBasisOrbital(reciprocal_supercell, reshape(orbital_elements[:, n],
-            size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n) |> wtp_normalize! for n in 1:n_band(ũ)]
+            size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n) |> square_normalize! for n in 1:n_band(ũ)]
 end
 
 # function bloch_orbital_sum(n)
@@ -242,7 +242,7 @@ end
 #             target_orbital[grid_vector] = ũ[k][n][g]
 #         end
 #     end
-#     return target_orbital |> wtp_normalize!
+#     return target_orbital |> square_normalize!
 # end
 # @time result = bloch_orbital_sum(1)
 # return result
