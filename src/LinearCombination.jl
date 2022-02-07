@@ -12,24 +12,43 @@ This abstract type is to provide
 abstract type LinearCombination end
 
 """
-The basis is always internally stored as kets. 
+    _basis(linear_combination)
+
+This returns the basis as they are internally stored, which is as kets.
+Most likely you want to use `basis` instead.
 """
 _basis(linear_combination::LinearCombination) = linear_combination.basis
 
 """
-The basis of a linear comb. Since the basis are stored internally as kets,
-they have to be conjugated before returned if the linear comb is a bra.
+    basis(linear_combination)
+
+The basis of a linear combination. Since the basis are stored internally as kets,
+they have to be conjugated before returned if the linear combination is a bra.
 """
-basis(linear_combination::LinearCombination) = ket(linear_combination) ? _basis(linear_combination) : [dagger(b) for b in _basis(linear_combination)]
+basis(linear_combination::LinearCombination) = ket(linear_combination) ? _basis(linear_combination) : Tuple(dagger(b) for b in _basis(linear_combination)) 
 
 _basis!(linear_combination::LinearCombination, new_basis) = linear_combination.basis = new_basis
 
 """
-The _coefficients of the linear combination. 
+    coefficients(linear_combination)
+
+The coefficients of the linear combination. 
 """
 coefficients(linear_combination::LinearCombination) = linear_combination._coefficients
-coefficients!(linear_combination::LinearCombination, new_coefficientsoefficients) = linear_combination.coefficients = new_coefficientsoefficients
 
+"""
+    coefficients!(linear_combination, new_coefficients)
+
+Set the coefficients to `new_coefficients`.
+"""
+coefficients!(linear_combination::LinearCombination, new_coefficients) = linear_combination.coefficients = new_coefficients
+
+"""
+    set_coefficients(linear_combination, new_coefficients)
+
+Set the coefficients to `new_coefficients`.
+"""
+set_coefficients(linear_combination::LinearCombination, new_coefficients) = @set linear_combination.coefficients = new_coefficients
 
 """
 Arithmatics. Only minus has a default implementation.
@@ -51,11 +70,6 @@ function braket(l_1::LinearCombination, l_2::LinearCombination)
 
     b_12 = [braket(b_1, b_2) for b_1 in basis(l_1), b_2 in basis(l_2)]
     return transpose(coefficients(l_1)) * b_12 * coefficients(l_2)
-    # for (b_1, c1) in zip(basis(l_1), coefficients(l_1))
-    #     for (b_2, c2) in zip(basis(l_2), coefficients(l_2))
-    #         result +=  c1 * c2 * braket(b_1, b_2)
-    #     end
-    # end
     return result
 end
 
