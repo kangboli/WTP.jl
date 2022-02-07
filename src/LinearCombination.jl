@@ -22,10 +22,10 @@ _basis(linear_combination::LinearCombination) = linear_combination.basis
 """
     basis(linear_combination)
 
-The basis of a linear comb. Since the basis are stored internally as kets,
-they have to be conjugated before returned if the linear comb is a bra.
+The basis of a linear combination. Since the basis are stored internally as kets,
+they have to be conjugated before returned if the linear combination is a bra.
 """
-basis(linear_combination::LinearCombination) = ket(linear_combination) ? _basis(linear_combination) : [dagger(b) for b in _basis(linear_combination)]
+basis(linear_combination::LinearCombination) = ket(linear_combination) ? _basis(linear_combination) : Tuple(dagger(b) for b in _basis(linear_combination)) 
 
 _basis!(linear_combination::LinearCombination, new_basis) = linear_combination.basis = new_basis
 

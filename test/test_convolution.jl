@@ -6,7 +6,7 @@ using LinearAlgebra
 
     ## Load the wave function.
     wave_functions_list = wave_functions_from_directory(joinpath(test_6_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list)
+    ũ = orbital_set_from_save(wave_functions_list)
     brillouin_zone = grid(ũ)
 
     ## Get the map of kpoints.
@@ -35,7 +35,7 @@ using LinearAlgebra
     reciprocal_densities = (ρ -> fft(ρ, false)).(densities)
 
     # Construct the scheme and apply the transform.
-    scheme = W90FiniteDifference3D(ũ)
+    scheme = CosScheme3D(ũ)
     M = gauge_transform(neighbor_basis_integral(scheme), U)
 
     # Check that the center and the spread are not too far away from W90.

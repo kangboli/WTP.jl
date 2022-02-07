@@ -5,7 +5,7 @@ using LinearAlgebra
 @testset "integral table" begin
 
     wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list)
+    ũ = orbital_set_from_save(wave_functions_list)
     g = grid(ũ)
     gamma_point = g[0, 0, 0]
 
@@ -21,7 +21,7 @@ using LinearAlgebra
 
     @test isapprox(compute_weights(neighbor_shells)[1],  5.3360380375, atol=1e-6)
 
-    scheme = W90FiniteDifference3D(ũ)
+    scheme = CosScheme3D(ũ)
     integrals_from_wave_functions = neighbor_basis_integral(scheme)
 
     @test braket(dagger(ũ[gamma_point][1]), ũ[g[0, 0, 1]][1]) ==

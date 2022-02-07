@@ -17,7 +17,7 @@ using Profile
 
     # Get and set the domain.
     @test domain(homecell_even) == ((-2, 1), (-3, 2), (-4, 3))
-    homecell_even = set_domain(homecell_even, size_to_domain(sizes_even))
+    @test homecell_even == set_domain(homecell_even, size_to_domain(sizes_even))
 
     # Grid expansion
     expanded_even = expand(homecell_even, [2, 3, 4])
@@ -26,8 +26,8 @@ using Profile
     @test domain(expanded_odd) == ((-0, 0), (-4, 4), (-5, 4))
 
     # Min/Max grid points
-    @test mins(expanded_even) == [-4, -9, -16]
-    @test maxes(expanded_even) == [3, 8, 15]
+    @test mins(expanded_even) == (-4, -9, -16)
+    @test maxes(expanded_even) == (3, 8, 15)
 
     # The center should be the origin.
     @test center(homecell_even) == (0, 0, 0)
@@ -41,7 +41,6 @@ using Profile
     lattice_basis_mat = vector3_to_matrix(basis(lattice))
     homecell_basis_mat = vector3_to_matrix(basis(homecell_even))
     @test isapprox(lattice_basis_mat' * homecell_basis_mat * diagm([sizes_even...]), I * 2 * pi)
-
     ## Transform a grid twice should yield the original grid.
     @test domain(homecell_even) == domain(transform_grid(lattice))
     isapprox(homecell_basis_mat, vector3_to_matrix(basis(transform_grid(lattice))))

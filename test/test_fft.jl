@@ -5,7 +5,7 @@ using LinearAlgebra
 
 @testset "fft" begin
     wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list);
+    ũ = orbital_set_from_save(wave_functions_list);
     gamma_point = grid(ũ)[0, 0, 0]
 
     # Load the real orbital from a unk file.

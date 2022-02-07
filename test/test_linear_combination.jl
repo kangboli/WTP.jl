@@ -20,7 +20,7 @@ using LinearAlgebra
     @test isapprox(basis_transform(coefficients(b_2), oblique_basis, CARTESIAN_BASIS), o_2, atol=1e-7 )
 
     wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list);
+    ũ = orbital_set_from_save(wave_functions_list);
     gamma_point = grid(ũ)[0, 0, 0]
     u1gamma = ũ[gamma_point][1]
     u2gamma = ũ[gamma_point][2]

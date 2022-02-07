@@ -1,137 +1,85 @@
-The orbitals are defined somewhat abstractly as functions on grids. The grid
-points are often times either real space points or wave numbers, but more generally they are sets of parameters of the basis functions.
+# $U_{n, \mathbf{k}}$ Orbitals
 
-```@setup orbital
-using WTP
-using Gadfly
+```@docs
+AbstractUnkOrbital
 ```
 
-## Creating an Orbital
+## Basis orbitals
 
-There are two ways of creating an orbital. The primary way is to read from the output of Quantum Espresso, but that goes into the IO part of the package. 
-The other way is to map a function onto a grid.
+A `UnkBasisOrbital` inherits `OnGrid` with a few additional properties.
 
-Suppose that we have a reciprocal grid
-```@example orbital
-g₁, g₂, g₃ = CARTESIAN_BASIS
-reciprocal_basis = (g₁, 2g₂, 3g₃)
-sizes = (10, 10, 10)
-lattice = make_grid(ReciprocalLattice3D, reciprocal_basis, size_to_domain(sizes))
+```@docs
+UnkBasisOrbital(::T, ::AbstractArray, ::AbstractGridVector{<:BrillouinZone}, ::Integer) where T 
 ```
 
-We can create a single plane wave as
-```@example orbital
-gₓ = lattice[1,0,0]
-ψ = map(g->(g==gₓ) |> Float64, lattice)
-ψ[gₓ]
+```@docs
+kpoint(::UnkBasisOrbital)
 ```
 
-We could also do this in the home cell.
-
-```@example orbital
-homecell = transform_grid(lattice)
-ϕ = map(r->exp(1im * gₓ' * r), homecell) |> wtp_normalize!
-spy(real.(ϕ[homecell[:,:,0]]))
-ans |> SVG("planewave_real.svg", 4inch, 4inch); nothing # hide
+```@docs
+kpoint!(::UnkBasisOrbital::UnkBasisOrbital, ::KPoint)
 ```
 
-![](planewave_real.svg)
-
-## Fast Fourier Transform
-
-The package is designed to make this as easy as it can get. To perform a forward FFT, 
-```@example orbital
-ϕ̂ = fft(ϕ)
-spy(real.(ϕ̂[lattice[:,:,0]]))
-ans |> SVG("planewave_freq.svg", 4inch, 4inch); nothing # hide
+```@docs
+index_band(::UnkBasisOrbital)
 ```
 
-![](planewave_freq.svg)
-
-The type of the orbital and the underlying grid are also transformed accordingly.
-```@example orbital
-typeof(ϕ), typeof(ϕ̂)
+```@docs
+dagger(::UnkBasisOrbital)
 ```
 
-The inverse FFT is,
-```@example orbital
-ψ̂ = ifft(ψ)
-spy(real.(ψ̂[homecell[:,:,0]]))
-ans |> SVG("planewave_real_again.svg", 4inch, 4inch); nothing # hide
-```
-![](planewave_real_again.svg)
-
-## Indexing an Orbital
-
-See the section on grid vectors.
-
-## Arithmatics
-
-### Addition and Subtraction
-
-```@example orbital
-using LinearAlgebra
-norm(elements(ψ + ϕ̂)), norm(elements(ψ - ϕ̂))
+```@docs
+dagger!(::UnkBasisOrbital)
 ```
 
-### Inner Product
+## Linear combination of orbitals.
 
-This is a very common operation, so the syntax must be simple.
-
-```@example orbital
-ψ' * ϕ̂
+```@docs
+UnkOrbital
 ```
 
-If you like to custom the inner product, the method to overload is
-`braket`.
-
-```@example orbital
-braket(ψ', ϕ̂)
+```@docs
+UnkOrbital(::Any)
 ```
 
-### Translation
-
-A translation is useful for efficient phase shifting.
-To translate an orbital by $[-1, 0, 0]$ (move the orbital to the left by one grid point), we have
-
-```@example orbital
-(ψ >> [-1, 0, 0])[lattice[0, 0, 0]]
+```@docs
+dagger(::UnkOrbital)
 ```
 
-## Linear Combination of Orbitals (Symbolic)
-
-Given a few basis orbitals, we can construct a linear combination of them for a basic set of symbolic manipulation.  A linear combination 
-is named `UnkOrbital` due to my stupidity.
-
-```@example orbital
-planewave(wave_numbers...) = map(g->(g==lattice[wave_numbers...]) |> 
-Float64, lattice) |> UnkOrbital
-
-ϕ₁ = planewave(1, 0, 0)
-ϕ₂ = planewave(0, 1, 0)
-ϕ₃ = planewave(0, 0, 1)
-ψ = 1ϕ₁ + 2ϕ₂ + 3ϕ₃
+```@docs
+dagger!(::UnkOrbital)
 ```
 
-Arithmatics should work as one expects
-
-### Addition and Subtraction
-
-```@example orbital
-ψ - 2ϕ₁ - ϕ₃
+```@docs
+index_band(::UnkOrbital)
 ```
 
-### Inner Product
-
-```@example orbital
-(ψ - 2ϕ₁ - ϕ₃)' * ψ 
+```@docs
+orthonormal(::UnkOrbital)
 ```
 
-### Matrix Multiplication
+## Indexing of linear combinations
 
-```@example orbital
-[ϕ₁, ϕ₂, ϕ₃]' * [0 0 1;
-                 0 1 0;
-                 1 0 0] * [ϕ₁, ϕ₂, ϕ₃]
+Not yet implemented.
 
+## Semi-symbolic arithmatics (experimental)
+
+```@docs
+add(::UnkOrbital, ::UnkOrbital)
+```
+
+```@docs
+negate(::UnkOrbital)
+```
+
+```@docs
+mul(::Number, ::UnkOrbital)
+```
+
+```@docs
+braket(::UnkOrbital, ::UnkOrbital)
+```
+
+```@docs
+zeros(::UnkOrbital, Vararg)
 ```

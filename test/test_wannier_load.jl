@@ -4,7 +4,7 @@ using LinearAlgebra
 
 @testset "WannierSet" begin
     wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list)
+    ũ = orbital_set_from_save(wave_functions_list)
     g = grid(ũ)
 
     gamma_point = g[0,0,0]

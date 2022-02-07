@@ -21,4 +21,11 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 Coverage = "1"
+Folds = "0.2"
+DataStructures = "0.18"
+StaticArrays = "1"
+AbstractFFTs = "1"
+FFTW = "1"
+ProgressMeter = "1"
+FortranFiles = "0.6"
 julia = "1"

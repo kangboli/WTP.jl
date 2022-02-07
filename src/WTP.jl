@@ -18,11 +18,10 @@ include("Grid.jl")
 include("GridVector.jl")
 include("OnGrid.jl")
 include("Orbital.jl")
-include("Wannier.jl")
+include("OrbitalSet.jl")
 include("ILA.jl")
 include("IOPW.jl")
 include("FileExport.jl")
 include("Operator.jl")
-include("Convolution.jl")
 
 end
