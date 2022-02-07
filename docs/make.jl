@@ -15,11 +15,6 @@ pages = [
     "Orbital" => "orbital.md",
     "Orbital Set " => "orbital_set.md",
     "Center and Spread" => "center_spread.md"
-    # "Wannier" => "wannier.md",
-    # "Γ-point" => "gamma_point.md",
-    # "Examples" => "examples.md",
-    # "API References" => "api_references.md",
-    # "Internals" => "internals.md"
 ]
 )
 
