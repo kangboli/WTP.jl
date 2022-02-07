@@ -2,7 +2,7 @@ export export_to_gaussian_cube
 
 function export_to_gaussian_cube(
     filename::String,
-    u::Wannier{UnkBasisOrbital{HomeCell}},
+    u::OrbitalSet{UnkBasisOrbital{<:HomeCell}},
     band::AbstractVector{<:Number},
     atoms::Vector = [],
 )
@@ -41,9 +41,9 @@ function export_to_gaussian_cube(
             phase = map(r -> exp(1im * (r' * k)), homecell)
             orbital = u[n, k] |> UnkBasisOrbital
             orbital = phase * orbital
-            raw_elements += sign.(real.(elements(orbital))) .* abs.(elements(orbital))
+            raw_elements += elements(orbital)
         end
-        return raw_elements
+        return abs2.(raw_elements)
     end
 
 
