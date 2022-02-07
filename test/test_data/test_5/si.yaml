@@ -1,0 +1,7 @@
+ecutwfc: 25.0
+exclude: false
+nbnd_start: 0
+write_unk: true
+nbnd: 4
+scdm: false
+num_iter: 50
