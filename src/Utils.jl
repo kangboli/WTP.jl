@@ -1,13 +1,21 @@
-export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set
+using Coverage, Dates
+
+export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set, process_coverage
 
 """
     size_to_domain(sizes)
 
-Convert a set of three sizes into a domain.
+Convert a set of three sizes into a centered domain following the centering
+convention.
 
-sizes must be an iterable of numbers.
+Example: 
+
+```@jldoctest miller
+julia> size_to_domain((3, 4, 5))
+((-1, 1), (-2, 1), (-2, 2))
+```
 """
-function size_to_domain(sizes) 
+function size_to_domain(sizes)
     domain(s::Integer) = iseven(s) ? (-s ÷ 2, s ÷ 2 - 1) : (-s ÷ 2, s ÷ 2)
 
     return Tuple(domain(n) for n in Int.(sizes))
@@ -19,78 +27,82 @@ function indent(str::String)
     return join(lines, "\n")
 end
 
-"""
-## The Miller Indices.
 
-TODO: Offsets have not been tested. 
+# """
+#     miller_to_standard(sizes, indices)
 
-Convert indices from miller indices to storage indices.  for example, for an
-even grid:
-
-miller:   -3 -2 -1  0  1  2  
-standard:  4  5  6  1  2  3  
-
-With an offset of 1, we effectively translate the orbital to the right by one.
-
-miller:    -4 -3 -2 -1  0  1 
-standard:   5  6  1  2  3  4
-
-For an odd grid, without an offset.
-
-miller:   -3 -2 -1  0  1  2  3
-standard:  5  6  7  1  2  3  4
-
-With an offset, we have
-
-miller:   -4 -3 -2 -1  0  1  2
-standard:  5  6  7  1  2  3  4
-
-Convention:
-
-Without any offset, for an even grid, the miller indices go from -n+1 to n.
-For an odd grid, the miller indices go from -n to n.
-
-To have a different range of miller indices. add offset o. For an even grid,
-the indices with offsets go from -n+1-o to n-o. For an odd grid, the indices
-with offsets go from -n-o to n-o.
-"""
-
+# Convert a set of miller indices to standard indices without offset. 
+# """
+# miller_to_standard(
+#     sizes::Tuple,
+#     indices::Tuple,
+# ) = collect(
+#     Iterators.map(
+#         (m, s) -> m >= 0 ? m + 1 : m + s + 1,
+#         indices,
+#         sizes,
+#     ),
+# )
 
 """
     miller_to_standard(sizes, indices, offsets)
 
 Convert a set of miller indices to standard indices. 
+
+Example:
+
+```@jldoctest miller
+julia> miller_to_standard((4, 4, 4), (0, 0, 0), (0, 0, 0))
+(1, 1, 1)
+julia> miller_to_standard(sizes, (-3, -1, 1), (1, 0, 0))
+(3, 4, 2)
+```
 """
-miller_to_standard(
-    sizes,
-    indices::AbstractVector{<:Integer},
-    offsets::AbstractVector{<:Integer},
-) = collect(
-    Iterators.map(
-        (m, o, s) -> m + o >= 0 ? m + o + 1 : m + o + s + 1,
-        indices,
-        offsets,
-        sizes,
-    ),
-)
+miller_to_standard(sizes::Tuple, indices::Tuple, offsets::Tuple) = 
+    map(miller_to_standard_1d, indices, offsets, sizes)
+
+miller_to_standard_1d(m::Int, o::Int, s::Int) = m + o >= 0 ? m + o + 1 : m + o + s + 1
+
+
+# """
+#     standard_to_miller(sizes, indices)
+
+# Convert a set of standard indices to miller indices without offsets.
+# """
+# standard_to_miller(
+#     sizes::Tuple,
+#     indices::Tuple,
+# ) = collect(
+#     Iterators.map(
+#         (m, s) -> let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
+#             m <= z ? m - 1 : m - 1 - s
+#         end,
+#         indices,
+#         offsets,
+#         sizes,
+#     ),
+# )
 
 """
     standard_to_miller(sizes, indices, offsets)
 
 Convert a set of standard indices to miller indices.
+
+Example:
+
+```@jldoctest miller
+julia> standard_to_miller(sizes, (1, 1, 1), (0, 0, 0))
+(0, 0, 0)
+julia> standard_to_miller(sizes, (3, 4, 2), (1, 0, 0))
+(-3, -1, 1)
+```
 """
-standard_to_miller(
-    sizes,
-    indices::AbstractVector{<:Integer},
-    offsets::AbstractVector{<:Integer},
-) = collect(
-    Iterators.map(
-        (m, o, s) -> m <= s ÷ 2 ? m - 1 - o : m - 1 - s - o,
-        indices,
-        offsets,
-        sizes,
-    ),
-)
+standard_to_miller(sizes::Tuple, indices::Tuple, offsets::Tuple) = 
+    map(standard_to_miller_1d, indices, offsets, sizes)
+
+standard_to_miller_1d(m::Int, o::Int, s::Int) = let z = iseven(s) ? s ÷ 2 : s ÷ 2 + 1
+    return m <= z ? m - 1 - o : m - 1 - s - o
+end
 
 
 """
@@ -100,17 +112,26 @@ Convert 1D indices to 3D ones.
 
 The conversion is best characterized as the following relation.
 
->>> reshape(A, prod(sizes))[i] = A[one_to_three(i, sizes)...]
+```julia
+reshape(A, prod(sizes))[i] == A[one_to_three(i, sizes)...]
+```
 
-That is indexing with a 3D index and a 1D index should be identical 
-if the two indices are mapped to each other with the following functions.
+That is, indexing with a 3D index and a 1D index should be identical 
+if the two indices are mapped to each other with `one_to_three`.
+
+Example:
+
+```@jldoctest miller
+julia> one_to_three(5, (4, 4, 4))
+(1, 2, 1)
+```
 """
-one_to_three(i::Integer, sizes) =
-    let (nx, ny, nz) = sizes
+one_to_three(i::Integer, sizes::NTuple{3, Int}) =
+    let (nx, ny, _) = sizes
         i = i - 1
         iz, yx = i ÷ (ny * nx) + 1, rem(i, ny * nx)
         iy, ix = yx ÷ nx + 1, rem(yx, nx) + 1
-        [ix, iy, iz]
+        (ix, iy, iz)
     end
 
 """
@@ -120,9 +141,18 @@ Convert 3D indices to 1D ones.
 
 The conversion is best characterized as the following relation.
 
->>> reshape(A, prod(sizes))[three_to_one(i, j, k, sizes)] = A[i, j, k]
+```julia
+reshape(A, prod(sizes))[three_to_one(i, j, k, sizes)] = A[i, j, k]
+```
+
+Example: 
+
+```@jldoctest miller
+julia> three_to_one(1, 2, 1, (4, 4, 4))
+5
+```
 """
-three_to_one(x::Integer, y::Integer, z::Integer, sizes) =
+three_to_one(x::Integer, y::Integer, z::Integer, sizes::NTuple{3, Int}) =
     let (nx, ny, _) = sizes
         (z - 1) * ny * nx + (y - 1) * nx + x
     end
@@ -133,8 +163,7 @@ three_to_one(x::Integer, y::Integer, z::Integer, sizes) =
 
 Create a copy of `a` with its field `b` set to `c`. 
 
-This is a limited version of `@set` from `Setfield` that does not leak memory.
-This should be deprecated if the memory problem with `Setfield` is figured out.
+This is a castrated version of `@set` from `Setfield`.
 """
 macro set(assignement)
     target = assignement.args[1]
@@ -148,4 +177,13 @@ end
 function set(object, modify_field::Symbol, value)
     values = [f == modify_field ? value : getfield(object, f) for f in fieldnames(typeof(object))]
     return typeof(object)(values...)
+end
+
+function process_coverage()
+    coverage = process_folder("src")
+    covered, total = get_summary(coverage)
+    @printf("Coverage is at %.2f percent\n", 100*covered/total)
+    LCOV.writefile("coverage/lcov_$(now()).info", coverage)
+    clean_folder("src")
+    clean_folder("test")
 end

@@ -1,31 +1,29 @@
-"""
-using Test
 using WTP
-"""
-
+using Test
 using LinearAlgebra
 
-struct DefaultLinearCombination <: LinearCombination
-    _coefficients
-    basis
-    ket::Bool
-end
 
-o_1 = [0, 1, 1] / sqrt(2)
-o_2 = [1, 0, 1] / sqrt(2)
-o3 = [0, 0, 1] / sqrt(2)
-oblique_basis = (Vector3(o_1...), Vector3(o_2...), Vector3(o3...))
-b_1 = DefaultLinearCombination([1, 0, 0], oblique_basis, true)
-b_2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
-@test isapprox(coefficients(basis_transform(b_1, CARTESIAN_BASIS)), o_1, atol=1e-7 )
-@test isapprox(coefficients(basis_transform(b_2, CARTESIAN_BASIS)), o_2, atol=1e-7 )
+@testset "Linear Combinationination" begin
+    struct DefaultLinearCombination <: LinearCombination
+        _coefficients
+        basis
+        ket::Bool
+    end
 
+    o_1 = [0, 1, 1] / sqrt(2)
+    o_2 = [1, 0, 1] / sqrt(2)
+    o3 = [0, 0, 1] / sqrt(2)
+    oblique_basis = (Vector3(o_1...), Vector3(o_2...), Vector3(o3...))
+    b_1 = DefaultLinearCombination([1, 0, 0], oblique_basis, true)
+    b_2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
+    @test isapprox(basis_transform(coefficients(b_1), oblique_basis, CARTESIAN_BASIS), o_1, atol=1e-7 )
+    @test isapprox(basis_transform(coefficients(b_2), oblique_basis, CARTESIAN_BASIS), o_2, atol=1e-7 )
 
-@testset "Linear Combinationination of Orbitals" begin
-    wannier = wannier_from_save(joinpath(test_1_dir, "si.save"));
-    gamma_point = grid(wannier)[0, 0, 0]
-    u1gamma = wannier[gamma_point][1]
-    u2gamma = wannier[gamma_point][2]
+    wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
+    ũ = orbital_set_from_save(wave_functions_list);
+    gamma_point = grid(ũ)[0, 0, 0]
+    u1gamma = ũ[gamma_point][1]
+    u2gamma = ũ[gamma_point][2]
 
     comb_1 = UnkOrbital(u1gamma)
     comb_2 = UnkOrbital(u2gamma)
@@ -44,8 +42,8 @@ b_2 = DefaultLinearCombination([0, 1, 0], oblique_basis, true)
     @test isapprox(braket(dagger(comb_1), comb_1), 1, atol=1e-7)
     @test isapprox(braket(dagger(comb_2), comb_1), 0, atol=1e-7)
 
-    ut1gamma = wannier[1, gamma_point]
-    ut1kappa = wannier[1, grid(wannier)[0, 0, 1]]
+    ut1gamma = ũ[1, gamma_point]
+    ut1kappa = ũ[1, grid(ũ)[0, 0, 1]]
     c1 = UnkOrbital(ut1gamma)
     c2 = UnkOrbital(ut1kappa)
     c3 = add(c1, c2, false)
