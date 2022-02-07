@@ -14,7 +14,7 @@ const path_to_benzene = "../test/test_data/test_3"
 
 ```@example gamma
 wave_functions_list = wave_functions_from_directory(joinpath(path_to_benzene, "benzene.save"))
-u = wannier_from_save(wave_functions_list);
+u = orbital_set_from_save(wave_functions_list);
 k_map, _ = i_kpoint_map(wave_functions_list)
 grid(u)
 ```
@@ -29,7 +29,7 @@ scheme if we consider the neighbors to be the Γ-point of adjacent Brillouin zon
 ```@example gamma
 amn = AMN(joinpath(path_to_benzene, "output/pw2wan/benzene.amn"))
 U = Gauge(grid(u), amn, k_map)
-scheme = W90FiniteDifference3D(u, 1)
+scheme = CosScheme3D(u, 1)
 M = gauge_transform(neighbor_basis_integral(scheme), U)
 
 center(M, scheme,  1)

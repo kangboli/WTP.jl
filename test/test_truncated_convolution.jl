@@ -7,7 +7,7 @@ using LinearAlgebra
     ## Load the wave function.
 
     wave_functions_list = wave_functions_from_directory(joinpath(test_6_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list)
+    ũ = orbital_set_from_save(wave_functions_list)
     brillouin_zone = grid(ũ)
 
     ## Get the map of kpoints.
@@ -19,9 +19,9 @@ using LinearAlgebra
     U = Gauge(grid(ũ), amn, k_map)
 
     ## Construct the scheme and compare the gradients.
-    scheme = W90FiniteDifference3D(ũ)
+    scheme = CosScheme3D(ũ)
     G_1 = gauge_gradient(U, scheme, brillouin_zone, TruncatedConvolution)
-    G_2 = gauge_gradient(U, scheme, brillouin_zone, BranchNaive)
+    G_2 = gauge_gradient(U, scheme, brillouin_zone, W90BranchCut)
 
     @test sum(k -> norm(G_1[k] - G_2[k]), brillouin_zone) < 1
 
@@ -35,8 +35,8 @@ using LinearAlgebra
     for i = 1:4
         c_1 = center(M, scheme, i, TruncatedConvolution)
         s_1 = spread(M, scheme, i, TruncatedConvolution)
-        c_2 = center(M, scheme, i, BranchNaive)
-        s_2 = spread(M, scheme, i, BranchNaive)
+        c_2 = center(M, scheme, i, W90BranchCut)
+        s_2 = spread(M, scheme, i, W90BranchCut)
         @test isapprox(norm(c_1 - c_2), 0, atol = 1e-7)
         @test isapprox(s_1 - s_2, 0, atol = 0.5)
     end

@@ -5,7 +5,7 @@ using LinearAlgebra
 
 @testset "ILA No Guess Optimization" begin
     wave_functions_list = wave_functions_from_directory(joinpath(test_5_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list)
+    ũ = orbital_set_from_save(wave_functions_list)
     brillouin_zone = grid(ũ)
     homecell = transform_grid(orbital_grid(ũ))
     ## Get the map of kpoints.
@@ -14,7 +14,7 @@ using LinearAlgebra
 
     # No guess optimization
     U = Gauge(grid(ũ), n_band(ũ))
-    scheme = W90FiniteDifference3D(ũ)
+    scheme = CosScheme3D(ũ)
     optimizer = ILAOptimizer(scheme)
     # supercell = expand(homecell, [size(brillouin_zone)...])
     # r̃2 = fft(map(r->norm(r)^2, supercell) , false)

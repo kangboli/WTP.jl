@@ -6,7 +6,7 @@ using LinearAlgebra
 @testset "Gauge transform" begin
 
     wave_functions_list = wave_functions_from_directory(joinpath(test_2_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list)
+    ũ = orbital_set_from_save(wave_functions_list)
     g = grid(ũ)
     k_map, _ = i_kpoint_map(wave_functions_list)
 

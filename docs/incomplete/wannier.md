@@ -12,7 +12,7 @@ path_to_si = "../test/test_data/test_1"
 
 using WTP
 wave_functions_list = wave_functions_from_directory(joinpath(path_to_si, "si.save"))
-u = wannier_from_save(wave_functions_list)
+u = orbital_set_from_save(wave_functions_list)
 k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 ```
 
@@ -21,7 +21,7 @@ using WTP
 
 path_to_si = "../../test/test_data/test_1" # hide
 wave_functions_list = wave_functions_from_directory(joinpath(path_to_si, "si.save"))
-u = wannier_from_save(wave_functions_list)
+u = orbital_set_from_save(wave_functions_list)
 k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 Γ = brillouin_zone[0, 0, 0]
 ```
@@ -74,7 +74,7 @@ It is not straightforward to construct a `Wannier` from scrach since we would ha
 
 ```julia
 wave_functions_list = wave_functions_from_directory(joinpath(path_to_si, "si.save"))
-u = wannier_from_save(wave_functions_list)
+u = orbital_set_from_save(wave_functions_list)
 ```
 
 Since `Wannier` is a function on a grid (the Brillouin zone), it can be indexed with a `GridVector` $k$.
@@ -135,7 +135,7 @@ reproduce the same center and spread. To create a scheme, we only need the `Wann
 object. 
 
 ```@example wannier
-scheme = W90FiniteDifference3D(u)
+scheme = CosScheme3D(u)
 shells(scheme), weights(scheme)
 ```
 

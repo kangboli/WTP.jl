@@ -23,14 +23,14 @@ end
     coordinates_kpoints = [wave_functions.k_coordinates for wave_functions in wave_functions_list]
     brillouin_zone = brillouin_zone_from_k_coordinates(coordinates_kpoints, wave_function_basis(wave_functions_list[1]))
     @test size(brillouin_zone) == (4, 4, 4)
-    wannier = init_wannier(brillouin_zone)
+    wannier = init_orbital_set(brillouin_zone)
     sizes = Tuple(maximum((wave_function) -> estimate_sizes(wave_function, i, 2), wave_functions_list) for i in 1:3)
     @test sizes == (24, 24, 24)
 end
 
 @testset "Orbital" begin
     wave_functions_list = wave_functions_from_directory(joinpath(test_1_dir, "si.save"))
-    ũ = wannier_from_save(wave_functions_list);
+    ũ = orbital_set_from_save(wave_functions_list);
     gamma_point = grid(ũ)[0, 0, 0]
     u1gamma = ũ[gamma_point][1]
     @test size(grid(u1gamma)) == (24, 24, 24)

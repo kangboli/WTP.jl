@@ -29,7 +29,7 @@ wave_functions_from_directory
 ```
 
 ```@docs
-wannier_from_save
+orbital_set_from_save
 ```
 
 ```@docs

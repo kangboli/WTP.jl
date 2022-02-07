@@ -6,7 +6,7 @@ using LinearAlgebra
 @testset "Benzene Gamma" begin
 
     wave_functions_list = wave_functions_from_directory(joinpath(test_3_dir, "benzene.save"))
-    wannier = wannier_from_save(wave_functions_list)
+    wannier = orbital_set_from_save(wave_functions_list)
     gamma_point = grid(wannier)[0, 0, 0]
 
     k_map, _ = i_kpoint_map(wave_functions_list)
@@ -16,27 +16,27 @@ using LinearAlgebra
     amn = AMN(joinpath(test_3_dir, "output/pw2wan/benzene.amn"))
     U = Gauge(grid(wannier), amn, k_map)
 
-    scheme = W90FiniteDifference3D(wannier, 1)
+    scheme = CosScheme3D(wannier, 1)
 
     M = gauge_transform(neighbor_basis_integral(scheme), U)
 
-    @test isapprox(center(M, scheme, 1, BranchNaive), [13.664088, 13.584512, -14.820745], atol = 1e-6)
-    @test isapprox(center(M, scheme, 2, BranchNaive), [12.299523, 13.400594, -14.930998], atol = 1e-6)
-    @test isapprox(center(M, scheme, 3, BranchNaive), [11.440610, 12.624274, 14.740192], atol = 1e-6)
-    @test isapprox(center(M, scheme, 4, BranchNaive), [13.392026, -13.454062, -14.966689], atol = 1e-6)
-    @test isapprox(center(M, scheme, 5, BranchNaive), [13.090875, 13.075826, 14.574919], atol = 1e-6)
-    @test isapprox(center(M, scheme, 6, BranchNaive), [12.541850, -13.527836, 14.994046], atol = 1e-6)
-    @test isapprox(center(M, scheme, 7, BranchNaive), [14.258706, -14.931835, 14.836772], atol = 1e-6)
-    @test isapprox(center(M, scheme, 8, BranchNaive), [11.183312, -13.922845, -14.944576], atol = 1e-6)
-    @test isapprox(center(M, scheme, 9, BranchNaive), [12.393579, -14.493156, -14.765461], atol = 1e-6)
-    @test isapprox(center(M, scheme, 10, BranchNaive), [12.635387, 13.903749, 14.884168], atol = 1e-6)
-    @test isapprox(center(M, scheme, 11, BranchNaive), [-13.521396, 14.987840, -14.760481], atol = 1e-6)
-    @test isapprox(center(M, scheme, 12, BranchNaive), [12.423043, -14.489749, 14.921353], atol = 1e-6)
-    @test isapprox(center(M, scheme, 13, BranchNaive), [13.438646, -13.632424, 14.972581], atol = 1e-6)
-    @test isapprox(center(M, scheme, 14, BranchNaive), [11.351283, 14.274368, -14.718336], atol = 1e-6)
-    @test isapprox(center(M, scheme, 15, BranchNaive), [14.413077, -12.416998, 14.972585], atol = 1e-6)
+    @test isapprox(center(M, scheme, 1, W90BranchCut), [13.664088, 13.584512, -14.820745], atol = 1e-6)
+    @test isapprox(center(M, scheme, 2, W90BranchCut), [12.299523, 13.400594, -14.930998], atol = 1e-6)
+    @test isapprox(center(M, scheme, 3, W90BranchCut), [11.440610, 12.624274, 14.740192], atol = 1e-6)
+    @test isapprox(center(M, scheme, 4, W90BranchCut), [13.392026, -13.454062, -14.966689], atol = 1e-6)
+    @test isapprox(center(M, scheme, 5, W90BranchCut), [13.090875, 13.075826, 14.574919], atol = 1e-6)
+    @test isapprox(center(M, scheme, 6, W90BranchCut), [12.541850, -13.527836, 14.994046], atol = 1e-6)
+    @test isapprox(center(M, scheme, 7, W90BranchCut), [14.258706, -14.931835, 14.836772], atol = 1e-6)
+    @test isapprox(center(M, scheme, 8, W90BranchCut), [11.183312, -13.922845, -14.944576], atol = 1e-6)
+    @test isapprox(center(M, scheme, 9, W90BranchCut), [12.393579, -14.493156, -14.765461], atol = 1e-6)
+    @test isapprox(center(M, scheme, 10, W90BranchCut), [12.635387, 13.903749, 14.884168], atol = 1e-6)
+    @test isapprox(center(M, scheme, 11, W90BranchCut), [-13.521396, 14.987840, -14.760481], atol = 1e-6)
+    @test isapprox(center(M, scheme, 12, W90BranchCut), [12.423043, -14.489749, 14.921353], atol = 1e-6)
+    @test isapprox(center(M, scheme, 13, W90BranchCut), [13.438646, -13.632424, 14.972581], atol = 1e-6)
+    @test isapprox(center(M, scheme, 14, W90BranchCut), [11.351283, 14.274368, -14.718336], atol = 1e-6)
+    @test isapprox(center(M, scheme, 15, W90BranchCut), [14.413077, -12.416998, 14.972585], atol = 1e-6)
 
-    spread(n) = second_moment(M, scheme, n) - norm(center(M, scheme, n, BranchNaive))^2
+    spread(n) = second_moment(M, scheme, n) - norm(center(M, scheme, n, W90BranchCut))^2
 
     @test isapprox(spread(1), 11.08439110, atol = 1e-6)
     @test isapprox(spread(2), 5.85533247, atol = 1e-6)

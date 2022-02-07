@@ -10,7 +10,7 @@ using FortranFiles
 
 export WFC,
     wave_functions_from_directory,
-    wannier_from_save,
+    orbital_set_from_save,
     load_evc!,
     orbitals_from_wave_functions,
     UNK,
@@ -113,7 +113,7 @@ Assume that you are in `docs` directory (change the path otherwise).
 
 ```@jldoctest wfc
 julia> path_to_si = "../test/test_data/test_5";
-julia> wave_function = WFC(joinpath(path_to_si, "si.save/wfc1.dat"))
+julia> wave_function = WFC(joinpath(path_to_si, "si.save/wfc1.dat"));
 julia> wave_function.n_band, wave_function.gamma_only, wave_function.n_planewaves
 (4, false, 537)
 ```
@@ -173,7 +173,7 @@ function wave_functions_from_directory(save_dir::String)
 end
 
 """
-    wannier_from_save(
+    orbital_set_from_save(
         wave_functions_list,
         [domain_scaling_factor=2,]
     )
@@ -185,18 +185,18 @@ or from the energy cutoff for the density.
 Settting this to 2 gives the same FFT as QE.
 
 ```@jldoctest wfc
-julia> u = wannier_from_save(wave_functions_list);
+julia> u = orbital_set_from_save(wave_functions_list);
 julia> length(elements(u))
 64
 ```
 """
-function wannier_from_save(
+function orbital_set_from_save(
     wave_functions_list::AbstractVector{WFC},
     domain_scaling_factor::Integer = 2,
 )
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
-    wannier = init_wannier(brillouin_zone)
+    wannier = init_orbital_set(brillouin_zone)
     sizes = Tuple(
         maximum((w) -> estimate_sizes(w, i, domain_scaling_factor), wave_functions_list) for i = 1:3
     )
@@ -244,7 +244,7 @@ end
    single_orbital_from_wave_functions(w, l, k, n) 
 
 Use this if you want to load a single orbital. Mostly likely you will want
-`wannier_from_save` to load them all at once.
+`orbital_set_from_save` to load them all at once.
 
 Create an orbital on the nth band from a WFC object w. The orbital will be
 defined on a reciprocal lattice l.
@@ -535,7 +535,7 @@ function wannier_from_unk_dir(
 )
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
-    wannier = init_wannier(brillouin_zone)
+    wannier = init_orbital_set(brillouin_zone)
     sizes = Tuple(
         maximum((w) -> estimate_sizes(w, i, domain_scaling_factor), wave_functions_list) for i = 1:3
     )

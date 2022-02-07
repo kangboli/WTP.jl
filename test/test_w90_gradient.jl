@@ -7,7 +7,7 @@ using LinearAlgebra
     ## Load the wave function.
 
     wave_functions_list = wave_functions_from_directory(joinpath(test_2_dir, "si.save"))
-    wannier = wannier_from_save(wave_functions_list)
+    wannier = orbital_set_from_save(wave_functions_list)
 
     brillouin_zone = grid(wannier)
 
@@ -23,7 +23,7 @@ using LinearAlgebra
 
     ## Construct the scheme.
 
-    scheme = W90FiniteDifference3D(wannier)
+    scheme = CosScheme3D(wannier)
 
     ## Apply the gauge transform on the basis integrals to get the neighbor integrals.
 
@@ -34,7 +34,7 @@ using LinearAlgebra
     # from Wannier90.
 
 
-    G = gauge_gradient(U, scheme, brillouin_zone, BranchNaive)
+    G = gauge_gradient(U, scheme, brillouin_zone, W90BranchCut)
     Γ = brillouin_zone[0, 0, 0]
 
     # These matrix elements are printed from wannier90.x.
