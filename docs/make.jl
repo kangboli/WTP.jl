@@ -19,5 +19,5 @@ pages = [
 )
 
 deploydocs(
-    repo = "https://github.com/kangboli/WTP.jl",
+    repo = "github.com/kangboli/WTP.jl",
 )
