@@ -72,9 +72,9 @@ This syntax is very simple and expressive, but keep in mind that this involves
 compiling an anonymous function for each map, which costs as much as the mapping
 it self. 
 """
-function Base.map(f::Function, grid::T) where T<:Grid
+function Base.map(f::Function, grid::T, threading=true) where T<:Grid
     grid_vectors = array(grid)
-    raw_elements = Folds.map(f, grid_vectors, ThreadedEx())
+    raw_elements = threading ? Folds.map(f, grid_vectors, ThreadedEx()) : map(f, grid_vectors)
     shifted_elements = circshift(raw_elements, mins(grid))
     result = SimpleFunctionOnGrid{T}(grid, shifted_elements, true)
     return result
@@ -627,6 +627,31 @@ function quadratic_fit(o::OnGrid{T}, fitting_center::GridVector{T}) where {T<:Gr
     minima = [1, b..., (b .^ 2)...]' * solution
     return b, minima
 end
+
+"""
+A three-points fitting method for conjugate gradient.
+
+f(λ) ≈ a (λ - b)² + c around λ = 1
+f(λ) ≈ a λ² - 2ab λ + b² + c
+
+| 0  0  1 | | a      | = | f(0) |
+| 1  1  1 | | -2ab   |   | f(1) |
+| 4  2  1 | | b² + c |   | f(2) |
+
+```julia
+quadratic_fit_1d(x->2(x-3)^2 + 3)
+
+# output
+
+(3.0, 3.0)
+```
+"""
+function quadratic_fit_1d(f::Function)
+    a, negative_2ab, _ = [.5 -1 .5; -1.5 2 -.5; 1.0 .0 .0] * f.(0:2)
+    b = -negative_2ab / (2a)
+    return b, f(b)
+end
+
 
 """
     expand(on_grid, factors)

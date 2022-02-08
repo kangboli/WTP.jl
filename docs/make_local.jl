@@ -5,6 +5,7 @@ DocMeta.setdocmeta!(WTP, :DocTestSetup, :(using WTP; using LinearAlgebra; using 
 makedocs(sitename="𝑾𝑻𝑷.jl",
 modules=[WTP],
 checkdocs=:none,
+# strict=true,
 pages = [
     "Home" => "index.md",
     "Grid" => "grid.md",

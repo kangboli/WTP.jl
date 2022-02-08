@@ -19,7 +19,8 @@ export ApproximationScheme,
     gauge_gradient,
     ILAOptimizer,
     NeighborIntegral,
-    integrals
+    integrals,
+    FletcherReeves
 
 """
 The neighbor integrals indexed by two kpoints.  For each pair of kpoint, the
@@ -149,9 +150,9 @@ function find_neighbors(kpoint::KPoint, scheme::ApproximationScheme)
     return (dk -> kpoint + dk).([dk_list; -dk_list])
 end
 
-function gauge_transform(scheme::ApproximationScheme, U::Gauge)
-    @set scheme.neighbor_basis_integral = gauge_transform(neighbor_basis_integral(scheme), U)
-end
+# function gauge_transform(scheme::ApproximationScheme, U::Gauge)
+#     @set scheme.neighbor_basis_integral = gauge_transform(neighbor_basis_integral(scheme), U)
+# end
 
 
 """
@@ -190,8 +191,10 @@ true
 function Base.getindex(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KPoint)
     # coefficients(k_1) == coefficients(k_2) && return I
     i = integrals(neighbor_integral)
-    haskey(i, k_1 => k_2) && return i[k_1=>k_2]
-    return adjoint(i[k_2=>k_1])
+    # haskey(i, k_1 => k_2) && return i[k_1=>k_2]
+    # return adjoint(i[k_2=>k_1])
+    result = get(i, k_1=>k_2, nothing)
+    return result === nothing ? adjoint(i[k_2=>k_1]) : result
 end
 
 """
@@ -431,8 +434,9 @@ julia> spread(M, scheme, 2, W90BranchCut) # failure.
 133.09413338071354
 ```
 """
-spread(M::NeighborIntegral, scheme::CosScheme, n::Integer, ::Type{T}) where {T} = second_moment(M, scheme, n) -
-                                                                                            norm(center(M, scheme, n, T))^2
+spread(M::NeighborIntegral, scheme::CosScheme, n::Integer, ::Type{T}) where {T} = 
+second_moment(M, scheme, n) - norm(center(M, scheme, n, T))^2
+
 """
     spread(M, scheme, n, TruncatedConvolution)
 
@@ -461,6 +465,17 @@ function spread(M::NeighborIntegral, scheme::CosScheme, n::Integer, ::Type{Trunc
     end
 end
 
+
+function all_spread(U, scheme, ::Type{TruncatedConvolution})
+    M = gauge_transform(neighbor_basis_integral(scheme), U)
+    N = n_band(M)
+    brillouin_zone = collect(grid(scheme))
+    ρ̃(b) = sum(k -> diag(M[k, k+b]), brillouin_zone) / length(brillouin_zone) 
+
+    sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+        sum(b -> 2w * (ones(N) - abs.(ρ̃(b))), shell)
+    end
+end
 
 function populate_integral_table!(scheme::ApproximationScheme, u::OrbitalSet)
     brillouin_zone = grid(u)
@@ -593,14 +608,10 @@ but this simple optimizer is already out of the scope of this package.
 Example:
 
 ```jldoctest orbital_set
-optimizer = ILAOptimizer(scheme)
-U_optimal = optimizer(U, TruncatedConvolution)
-
-M_optimal = gauge_transform(neighbor_basis_integral(scheme), U_optimal)
-sum(i->spread(M_optimal, scheme, i, TruncatedConvolution), 1:4)
-
-# output
-
+julia> optimizer = ILAOptimizer(scheme);
+julia> U_optimal = optimizer(U, TruncatedConvolution, FletcherReeves);
+julia> M_optimal = gauge_transform(neighbor_basis_integral(scheme), U_optimal);
+julia> sum(i->spread(M_optimal, scheme, i, TruncatedConvolution), 1:4)
 24.206845069491276
 ```
 
@@ -614,83 +625,150 @@ struct ILAOptimizer
 end
 scheme(optimizer::ILAOptimizer) = optimizer.scheme
 
-function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
+
+"""
+    make_step(U, ΔW, α)
+
+Make a step from `log(U)` in the direction of `ΔW` by size `α`.  Keep in mind
+that the change in `U` is an approximate since `α ΔW` does not commute with
+`log(U)`, and the exponentiation cannot exactly be separated.
+"""
+function make_step(U::Gauge, ΔW, α)
     brillouin_zone = grid(U)
+    new_elements = elements(map(k -> U[k] * cis(-Hermitian(1im * α * ΔW[k])), brillouin_zone))
+    V = Gauge{typeof(brillouin_zone)}(brillouin_zone, new_elements)
+    return V
+end
+
+"""
+    line_search(U, f, ∇f, ∇f², α, α_0 = 2)
+
+Perform a line search in the direction of the gradient.
+"""
+function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
     Ω, ∇Ω = f(U), ∇f(U)
     ∇Ω² = ∇f²(∇Ω)
 
-    function try_step(α)
-        Q = Ω - 0.5α * ∇Ω²
-        new_elements = elements(map(k -> U[k] * cis(-Hermitian(1im * α * ∇Ω[k])), brillouin_zone))
-        V = Gauge{typeof(brillouin_zone)}(brillouin_zone, new_elements)
-        Ω_V = f(V)
-        return V, Ω_V, Q
-    end
-
     while true
-        V, Ω_V, Q = try_step(α)
+        Q = Ω - 0.5α * ∇Ω²
+        V = make_step(U, ∇Ω, α)
+        Ω_V = f(V)
 
         discontinuous = ∇Ω² > 1e-7 && α < 1e-3
-        discontinuous && return let α = α_0, (V, Ω_V, _) = try_step(α)
-            print(" ⤫ ")
+        discontinuous && return let α = α_0, V = make_step(U, ∇Ω, α), Ω_V = f(V)
+            print("✽")
             V, Ω_V, α, ∇Ω²
         end
-        # println("Q: $(Q)"); println("Ω: $(Ω)"); println("Ω_V: $(Ω_V)"); println("α: $(α)"); flush(stdout)
-        # println()
 
         Ω_V > Q || return V, Ω_V, α, ∇Ω²
         α /= 2
     end
 end
 
-function (optimizer::ILAOptimizer)(U_0::Gauge, ::Type{Branch}; n_iteration = Inf, α_0 = 2, ϵ=1e-7, logging=false) where {Branch}
+"""
+For an explanation of this conjugate gradient algorithm,
+see: http://www.mymathlib.com/optimization/nonlinear/unconstrained/fletcher_reeves.html
+
+The algorithm is adapted alightly since our objective function is not convex. Line searches 
+can be necessary when the quadratic fit turns out concave.
+"""
+struct FletcherReeves end
+
+struct AcceleratedGradientDescent end
+
+function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{}; n_iteration = Inf, α_0 = 2, ϵ=1e-7, logging=false) where {Branch}
     N = optimizer |> scheme |> neighbor_basis_integral |> n_band
-    U = U_0
     brillouin_zone = grid(U)
     f = U -> sum(all_spread(U, scheme(optimizer), Branch))
     ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(gauge_gradient(U, scheme(optimizer), brillouin_zone, Branch)))
-    ∇f² = ∇f -> sum(brillouin_zone) do k
-        v = reshape(∇f[k], N^2)
-        abs(v' * v)
-    end
+    ∇f² = ∇f -> sum(k-> norm(reshape(∇f[k], N^2))^2, brillouin_zone)
     α = α_0
-
+    t = 1
     current_iteration = -1
     while n_iteration > current_iteration
         current_iteration += 1
-        U, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², 2α, α_0 = α_0)
-        ∇Ω² < ϵ && break
-        logging && log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
+        X, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², α, α_0 = α_0)
+        ∇Ω² / (length(brillouin_zone) * N^2) < ϵ && break
+        logging && log(optimizer, U, current_iteration, Ω, ∇Ω², α)
+        if ∇Ω² / (length(brillouin_zone) * N^2) > 1e-3 
+            α = 2α
+            U = X
+            continue
+        end
+        t_next = (1 + sqrt(1 + 4t^2)) / 2
+        U = X + (t - 1) / t_next * (X - U)
+        t = t_next
     end
     return U
 end
 
-function log(optimizer, U, Branch, current_iteration, Ω, ∇Ω², α)
-    N = optimizer |> scheme |> neighbor_basis_integral |> n_band
-    append!(optimizer.meta[:ila_spread], [all_spread(U, scheme(optimizer), Branch)])
-    mod(current_iteration, 10) == 0 || return
 
+function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{FletcherReeves}; ϵ=1e-7) where Branch
+    N = optimizer |> scheme |> neighbor_basis_integral |> n_band
+    brillouin_zone = grid(U)
+    f = U -> sum(all_spread(U, scheme(optimizer), Branch))
+    ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(gauge_gradient(U, scheme(optimizer), brillouin_zone, Branch)))
+    ∇f² = ∇f -> sum(k-> norm(reshape(∇f[k], N^2))^2, brillouin_zone)
+    current_iteration = 0 
+    h_old, g_old = f(U), ∇f(U)
+    g²_old = ∇f²(g_old)
+    v_old = Gauge(brillouin_zone, N)
+    λ_old = 2
+
+    while true
+        g²_old / (length(brillouin_zone) * N^2) < ϵ && break
+        g = ∇f(U)
+        g² = ∇f²(g) 
+        α = rem(current_iteration, N^2) == 0 ? 0 : g² / g²_old
+        v = Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(map(k->g[k]+α*v_old[k], brillouin_zone)))
+        λ, h = quadratic_fit_1d(λ->make_step(U, v, λ) |> f)
+        if λ > 0 && h < h_old 
+            U = make_step(U, v, λ)
+            h = f(U)
+        else
+            U, h, λ, _ = line_search(U, f, ∇f, ∇f², 2λ_old)
+        end
+
+        println(current_iteration); println("α: $(α)"); println("λ: $(λ)"); println("Ω: $(h)"); println("∇Ω²: $(g²)"); println()
+        λ_old, h_old, v_old, g_old, g²_old = λ, h, v, g, g²
+        current_iteration += 1
+    end
+end
+
+function log(optimizer, U, current_iteration, Ω, ∇Ω², α)
     println("Ω: $(Ω)")
     println("∇Ω²: $(∇Ω²)")
     println("α: $(α)")
-    ũ = set_gauge(optimizer.meta[:ũ], U)
-    wannier_orbitals = commit_gauge(ũ)(:)
-    densities = abs2.(ifft.(wannier_orbitals))
-    # σ_total = 0
-    # println("Convolutional: $(σ_total)")
-    # @printf "ILA        : %.3f  %.3f  %.3f  %.3f\n" ...
-    # @printf "Convolution: "
-    center_difference = zeros(N)
-    convolutional_spread = zeros(N)
-    ila_centers = all_center(U, scheme(optimizer), Branch)
-    for i in 1:length(densities)
-        ρ = densities[i]
-        c, σ = center_spread(fft(ρ, false), optimizer.meta[:r̃2])
-        center_difference[i] = norm(c - ila_centers[i])
-        convolutional_spread[i] = σ
-    end
-    append!(optimizer.meta[:center_difference], [center_difference])
-    append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
     println()
+
+    # haskey(optimizer.meta, :truncated_convolution_spread)  || (optimizer.meta[:truncated_convolution_spread] = Vector{Vector{Float64}}())
+    # haskey(optimizer.meta, :w90_branch_cut_spread)  || (optimizer.meta[:w90_branch_cut_spread] = Vector{Vector{Float64}}())
+    # haskey(optimizer.meta, :convolutional_spread)  || (optimizer.meta[:convolutional_spread] = Vector{Vector{Float64}}())
+
+    # haskey(optimizer.meta, :truncated_convolution_center)  || (optimizer.meta[:truncated_convolution_center] = Vector{Matrix{Float64}}())
+    # haskey(optimizer.meta, :w90_branch_cut_center)  || (optimizer.meta[:w90_branch_cut_center] = Vector{Matrix{Float64}}())
+    # haskey(optimizer.meta, :convolutional_center)  || (optimizer.meta[:convolutional_center] = Vector{Matrix{Float64}}())
+
+    # N = optimizer |> scheme |> neighbor_basis_integral |> n_band
+    # append!(optimizer.meta[:truncated_convolution_spread], [all_spread(U, scheme(optimizer), TruncatedConvolution)])
+    # append!(optimizer.meta[:w90_branch_cut_spread], [all_spread(U, scheme(optimizer), W90BranchCut)])
+    # append!(optimizer.meta[:truncated_convolution_center], [hcat(all_center(U, scheme(optimizer), TruncatedConvolution)...)])
+    # append!(optimizer.meta[:w90_branch_cut_center], [hcat(all_center(U, scheme(optimizer), W90BranchCut)...)])
+
+    # mod(current_iteration, 10) == 0 || return
+
+#     ũ = set_gauge(optimizer.meta[:ũ], U)
+#     r̃2 = optimizer.meta[:r̃2]
+#     ρ̃ = reciprocal_densities(ũ)
+
+#    convolutional_center = zeros(3, length(ρ̃))
+#    convolutional_spread = zeros(length(ρ̃))
+#     for i in 1:length(length(ρ̃))
+#         c, σ² = center_spread(ρ̃[i], r̃2)
+#         convolutional_center[:, i] = c
+#         convolutional_spread[i] = σ²
+#     end
+#     append!(optimizer.meta[:convolutional_center], [convolutional_center])
+#     append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
 end
 

@@ -88,3 +88,7 @@ getindex(::OrbitalSet, ::Integer, ::KPoint)
 ```@docs
 wannier_orbitals
 ```
+
+```@docs
+reciprocal_densities
+```

@@ -12,7 +12,8 @@ export OrbitalSet,
     n_band,
     wannier_orbitals,
     supercell,
-    superlattice
+    superlattice,
+    reciprocal_densities
 
 """
 The gauge ``U^{k}`` is a set of matrices, where each matrix
@@ -483,16 +484,12 @@ function (ũ::OrbitalSet)(::Colon)
             size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n) |> square_normalize! for n in 1:n_band(ũ)]
 end
 
-# function bloch_orbital_sum(n)
-#     target_orbital = UnkBasisOrbital(reciprocal_supercell, zeros(ComplexFxx, size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n)
-#     Threads.@threads for k in collect(brillouin_zone)
-#         for g in collect(reciprocal_lattice)
-#             grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) - cartesian(k)))
-#             target_orbital[grid_vector] = ũ[k][n][g]
-#         end
-#     end
-#     return target_orbital |> square_normalize!
-# end
-# @time result = bloch_orbital_sum(1)
-# return result
+"""
+    reciprocal_densities(ũ)
 
+Gives the reciprocal space densities for the wannier functions.
+"""
+function reciprocal_densities(ũ::OrbitalSet{UnkBasisOrbital{T}}) where {T<:ReciprocalLattice}
+    wanniers = commit_gauge(ũ)(:)
+    return (ρ->fft(ρ, false)).(abs2.(ifft.(wanniers)))
+end
