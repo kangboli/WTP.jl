@@ -191,8 +191,9 @@ julia> length(elements(u))
 ```
 """
 function orbital_set_from_save(
-    wave_functions_list::AbstractVector{WFC},
+    wave_functions_list::AbstractVector{WFC};
     domain_scaling_factor::Integer = 2,
+    bands::Vector{Int} = collect(1:wave_functions_list[1].n_band)
 )
     k_map, brillouin_zone = i_kpoint_map(wave_functions_list)
 
@@ -203,14 +204,14 @@ function orbital_set_from_save(
 
     for w in wave_functions_list
         k = k_map[w.i_kpoint]
-        gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, w.n_band, w.n_band)
+        gauge(wannier)[reset_overflow(k)] = Matrix{Float64}(I, length(bands), length(bands))
 
-        load_evc!(w)
+        load_evc!(w, bands)
         reciprocal_lattice = make_grid(ReciprocalLattice3D,
             matrix_to_vector3(wave_function_basis(w)),
             size_to_domain(sizes),
         )
-        wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k)
+        wannier[reset_overflow(k)] = orbitals_from_wave_functions(w, reciprocal_lattice, k, bands)
         w.evc = nothing
     end
     return wannier
@@ -228,6 +229,7 @@ function orbitals_from_wave_functions(
     wave_functions::WFC,
     reciprocal_lattice::ReciprocalLattice,
     k::KPoint,
+    bands::Vector{Int}
 )
     return [
         single_orbital_from_wave_functions(
@@ -235,7 +237,8 @@ function orbitals_from_wave_functions(
             reciprocal_lattice,
             k,
             index_band,
-        ) for index_band = 1:wave_functions.n_band
+            band_order
+        ) for (band_order, index_band) in enumerate(bands)
     ]
 end
 
@@ -259,18 +262,19 @@ function single_orbital_from_wave_functions(
     wave_function::WFC,
     reciprocal_lattice::ReciprocalLattice,
     k::KPoint,
-    n::Int,
+    band_index::Int,
+    band_order::Int
 )
     wave_function.evc !== nothing || error("The wave functions are not loaded.")
     empty_elements = zeros(ComplexFxx, size(reciprocal_lattice)...)
-    orbital = UnkBasisOrbital(reciprocal_lattice, empty_elements, reset_overflow(k), n)
+    orbital = UnkBasisOrbital(reciprocal_lattice, empty_elements, reset_overflow(k), band_index)
 
     i_kpoint!(orbital, wave_function.i_kpoint)
 
     Threads.@threads for i = 1:wave_function.max_n_planewaves
         coefficients = wave_function.miller[:, i] + overflow(k)
         g = make_grid_vector(reciprocal_lattice, coefficients)
-        orbital[g] = wave_function.evc[i, n]
+        orbital[g] = wave_function.evc[i, band_order]
     end
 
     """
@@ -288,21 +292,25 @@ function single_orbital_from_wave_functions(
 end
 
 """
-    load_evc!(wfc)
+    load_evc!(wfc, [bands=1:wfc.n_band])
 
 Load the evc (frequency space wave-functions) into wave_functions.
 You probably shouldn't have to touch this.
 """
-function load_evc!(w::WFC)
+function load_evc!(w::WFC, bands=1:w.n_band)
     data = FortranFile(w.filename)
 
     # TODO: Demystify this piece of code.
     for _ = 1:4
         read(data)
     end
-    w.evc = zeros(ComplexFxx, w.n_polerizations * w.max_n_planewaves, w.n_band)
+    w.evc = zeros(ComplexFxx, w.n_polerizations * w.max_n_planewaves, length(bands))
+    c = 0
     for i = 1:w.n_band
-        w.evc[:, i] = read(data, (ComplexF64, w.n_polerizations * w.max_n_planewaves))
+        band_data = read(data, (ComplexF64, w.n_polerizations * w.max_n_planewaves))
+        i ∉ bands && continue
+        c += 1
+        w.evc[:, c] = band_data
     end
     close(data)
 end

@@ -18,6 +18,8 @@ export ApproximationScheme,
     TruncatedConvolution,
     gauge_gradient,
     ILAOptimizer,
+    logger,
+    scheme,
     NeighborIntegral,
     integrals,
     FletcherReeves
@@ -167,10 +169,10 @@ integrals(n::NeighborIntegral) = n.integrals
 function Base.hash(p::Pair{<:KPoint,<:KPoint})
     m, n = p
     a_nice_prime_number = 7
-    return hash(m) * a_nice_prime_number + hash(n) 
+    return hash(m) * a_nice_prime_number + hash(n)
 end
 
-function Base.:(==)(p_1::Pair{<:KPoint, <:KPoint}, p_2::Pair{<:KPoint, <:KPoint})
+function Base.:(==)(p_1::Pair{<:KPoint,<:KPoint}, p_2::Pair{<:KPoint,<:KPoint})
     m_1, n_1 = p_1
     m_2, n_2 = p_2
     return m_1 == m_2 && n_1 == n_2
@@ -193,7 +195,7 @@ function Base.getindex(neighbor_integral::NeighborIntegral, k_1::KPoint, k_2::KP
     i = integrals(neighbor_integral)
     # haskey(i, k_1 => k_2) && return i[k_1=>k_2]
     # return adjoint(i[k_2=>k_1])
-    result = get(i, k_1=>k_2, nothing)
+    result = get(i, k_1 => k_2, nothing)
     return result === nothing ? adjoint(i[k_2=>k_1]) : result
 end
 
@@ -294,7 +296,7 @@ function compute_weights(neighbor_shells::Vector{Vector{T}}) where {T<:AbstractG
     q = [i == b ? 1 : 0 for (i, b) in keys(indices)]
     w = A \ q
 
-    return isapprox(A * w, q, atol = 1e-13) ? w : nothing
+    return isapprox(A * w, q, atol = 1e-5) ? w : nothing
 end
 
 """
@@ -340,7 +342,7 @@ julia> center(M, scheme, 2, W90BranchCut)
 """
 function center(M::NeighborIntegral, scheme::CosScheme, n::Int, ::Type{W90BranchCut})
     kpoint_contribution(k::KPoint) = -sum(zip(weights(scheme), shells(scheme))) do (w, shell)
-        sum(b->w * cartesian(b) * angle(M[k, k+b][n, n]), shell) 
+        sum(b -> w * cartesian(b) * angle(M[k, k+b][n, n]), shell)
     end
 
     brillouin_zone = collect(grid(scheme))
@@ -411,9 +413,10 @@ end
 second_moment(scheme::CosScheme, n::Int) = second_moment(neighbor_basis_integral(scheme), scheme, n)
 
 function second_moment(M::NeighborIntegral, scheme::CosScheme, n::Int)
-    kpoint_contribution(k::KPoint) = sum(zip(weights(scheme), shells(scheme))) do (w, shell)
-        sum(b->w * (1 - abs2(M[k, k+b][n, n]) + angle(M[k, k+b][n, n])^2), shell)
-    end
+    kpoint_contribution(k::KPoint) =
+        sum(zip(weights(scheme), shells(scheme))) do (w, shell)
+            sum(b -> w * (1 - abs2(M[k, k+b][n, n]) + angle(M[k, k+b][n, n])^2), shell)
+        end
     brillouin_zone = collect(grid(scheme))
     return sum(kpoint_contribution.(brillouin_zone)) / prod(size(brillouin_zone))
 end
@@ -434,8 +437,8 @@ julia> spread(M, scheme, 2, W90BranchCut) # failure.
 133.09413338071354
 ```
 """
-spread(M::NeighborIntegral, scheme::CosScheme, n::Integer, ::Type{T}) where {T} = 
-second_moment(M, scheme, n) - norm(center(M, scheme, n, T))^2
+spread(M::NeighborIntegral, scheme::CosScheme, n::Integer, ::Type{T}) where {T} =
+    second_moment(M, scheme, n) - norm(center(M, scheme, n, T))^2
 
 """
     spread(M, scheme, n, TruncatedConvolution)
@@ -458,7 +461,7 @@ julia> σ²_1, σ²_2
 """
 function spread(M::NeighborIntegral, scheme::CosScheme, n::Integer, ::Type{TruncatedConvolution})
     brillouin_zone = collect(grid(scheme))
-    ρ̃(b) = sum(k -> M[k, k+b][n, n], brillouin_zone) / length(brillouin_zone) 
+    ρ̃(b) = sum(k -> M[k, k+b][n, n], brillouin_zone) / length(brillouin_zone)
 
     sum(zip(weights(scheme), shells(scheme))) do (w, shell)
         sum(b -> 2w * (1 - abs(ρ̃(b))), shell)
@@ -470,7 +473,7 @@ function all_spread(U, scheme, ::Type{TruncatedConvolution})
     M = gauge_transform(neighbor_basis_integral(scheme), U)
     N = n_band(M)
     brillouin_zone = collect(grid(scheme))
-    ρ̃(b) = sum(k -> diag(M[k, k+b]), brillouin_zone) / length(brillouin_zone) 
+    ρ̃(b) = sum(k -> diag(M[k, k+b]), brillouin_zone) / length(brillouin_zone)
 
     sum(zip(weights(scheme), shells(scheme))) do (w, shell)
         sum(b -> 2w * (ones(N) - abs.(ρ̃(b))), shell)
@@ -599,6 +602,7 @@ function all_center(U, scheme, ::Type{Branch}) where {Branch}
     end
 end
 
+
 """
     ILAOptimizer(scheme)
 
@@ -620,11 +624,24 @@ Optimization with `W90BranchCut` is not included because it's too much work for
 """
 struct ILAOptimizer
     scheme::CosScheme
-    meta::Dict
-    ILAOptimizer(scheme::CosScheme) = new(scheme, Dict())
+    meta::Dict{Symbol, Any}
+    logger::Dict{Symbol,Vector}
 end
-scheme(optimizer::ILAOptimizer) = optimizer.scheme
 
+ILAOptimizer(scheme::CosScheme) = ILAOptimizer(scheme,
+    Dict{Symbol, Any}(),
+    Dict{Symbol, Vector}(
+        :w90_branch_cut_center => Vector{Matrix{Float64}}(),
+        :truncated_convolution_center => Vector{Matrix{Float64}}(),
+        :convolutional_center => Vector{Matrix{Float64}}(),
+        :w90_branch_cut_spread => Vector{Vector{Float64}}(),
+        :truncated_convolution_spread => Vector{Vector{Float64}}(),
+        :convolutional_spread => Vector{Vector{Float64}}(),
+        :step_size => Vector{Vector{Float64}}()
+    ))
+
+scheme(optimizer::ILAOptimizer) = optimizer.scheme
+logger(optimizer::ILAOptimizer) = optimizer.logger
 
 """
     make_step(U, ΔW, α)
@@ -666,22 +683,28 @@ function line_search(U, f, ∇f, ∇f², α; α_0 = 2)
 end
 
 """
+The (tampered) Fletcher Reeves conjugate gradient algorithm.
+
 For an explanation of this conjugate gradient algorithm,
 see: http://www.mymathlib.com/optimization/nonlinear/unconstrained/fletcher_reeves.html
 
-The algorithm is adapted alightly since our objective function is not convex. Line searches 
-can be necessary when the quadratic fit turns out concave.
+The algorithm is adapted alightly since our objective function is not convex.
+Line searches can be necessary when the quadratic fit turns out concave.
 """
 struct FletcherReeves end
 
+"""
+The accelerated gradient descent algortihm. The acceleration starts when the
+gradient becomes small enough.
+"""
 struct AcceleratedGradientDescent end
 
-function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{}; n_iteration = Inf, α_0 = 2, ϵ=1e-7, logging=false) where {Branch}
+function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{AcceleratedGradientDescent}; n_iteration = Inf, α_0 = 2, ϵ = 1e-7, logging = false) where {Branch}
     N = optimizer |> scheme |> neighbor_basis_integral |> n_band
     brillouin_zone = grid(U)
     f = U -> sum(all_spread(U, scheme(optimizer), Branch))
     ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(gauge_gradient(U, scheme(optimizer), brillouin_zone, Branch)))
-    ∇f² = ∇f -> sum(k-> norm(reshape(∇f[k], N^2))^2, brillouin_zone)
+    ∇f² = ∇f -> sum(k -> norm(reshape(∇f[k], N^2))^2, brillouin_zone)
     α = α_0
     t = 1
     current_iteration = -1
@@ -690,7 +713,7 @@ function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{}; n_iterati
         X, Ω, α, ∇Ω² = line_search(U, f, ∇f, ∇f², α, α_0 = α_0)
         ∇Ω² / (length(brillouin_zone) * N^2) < ϵ && break
         logging && log(optimizer, U, current_iteration, Ω, ∇Ω², α)
-        if ∇Ω² / (length(brillouin_zone) * N^2) > 1e-3 
+        if ∇Ω² / (length(brillouin_zone) * N^2) > 1e-3
             α = 2α
             U = X
             continue
@@ -703,13 +726,13 @@ function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{}; n_iterati
 end
 
 
-function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{FletcherReeves}; ϵ=1e-7) where Branch
+function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{FletcherReeves}; ϵ = 1e-7, logging = false) where {Branch}
     N = optimizer |> scheme |> neighbor_basis_integral |> n_band
     brillouin_zone = grid(U)
     f = U -> sum(all_spread(U, scheme(optimizer), Branch))
     ∇f = U -> Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(gauge_gradient(U, scheme(optimizer), brillouin_zone, Branch)))
-    ∇f² = ∇f -> sum(k-> norm(reshape(∇f[k], N^2))^2, brillouin_zone)
-    current_iteration = 0 
+    ∇f² = ∇f -> sum(k -> norm(reshape(∇f[k], N^2))^2, brillouin_zone)
+    current_iteration = 0
     h_old, g_old = f(U), ∇f(U)
     g²_old = ∇f²(g_old)
     v_old = Gauge(brillouin_zone, N)
@@ -718,28 +741,38 @@ function (optimizer::ILAOptimizer)(U::Gauge, ::Type{Branch}, ::Type{FletcherReev
     while true
         g²_old / (length(brillouin_zone) * N^2) < ϵ && break
         g = ∇f(U)
-        g² = ∇f²(g) 
+        g² = ∇f²(g)
         α = rem(current_iteration, N^2) == 0 ? 0 : g² / g²_old
-        v = Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(map(k->g[k]+α*v_old[k], brillouin_zone)))
-        λ, h = quadratic_fit_1d(λ->make_step(U, v, λ) |> f)
-        if λ > 0 && h < h_old 
+        v = Gauge{typeof(brillouin_zone)}(brillouin_zone, elements(map(k -> g[k] + α * v_old[k], brillouin_zone)))
+        λ, h = quadratic_fit_1d(λ -> make_step(U, v, λ) |> f)
+        if λ > 0 && h < h_old
             U = make_step(U, v, λ)
             h = f(U)
         else
             U, h, λ, _ = line_search(U, f, ∇f, ∇f², 2λ_old)
         end
 
-        println(current_iteration); println("α: $(α)"); println("λ: $(λ)"); println("Ω: $(h)"); println("∇Ω²: $(g²)"); println()
+        logging && log(optimizer, U, current_iteration, h, g², λ)
         λ_old, h_old, v_old, g_old, g²_old = λ, h, v, g, g²
         current_iteration += 1
     end
+    return U
 end
 
+
 function log(optimizer, U, current_iteration, Ω, ∇Ω², α)
+    println("Iteration: $(current_iteration)")
     println("Ω: $(Ω)")
     println("∇Ω²: $(∇Ω²)")
     println("α: $(α)")
     println()
+
+    N = optimizer |> scheme |> neighbor_basis_integral |> n_band
+    append!(logger(optimizer)[:truncated_convolution_spread], [all_spread(U, scheme(optimizer), TruncatedConvolution)])
+    append!(logger(optimizer)[:w90_branch_cut_spread], [all_spread(U, scheme(optimizer), W90BranchCut)])
+    append!(logger(optimizer)[:truncated_convolution_center], [hcat(all_center(U, scheme(optimizer), TruncatedConvolution)...)])
+    append!(logger(optimizer)[:w90_branch_cut_center], [hcat(all_center(U, scheme(optimizer), W90BranchCut)...)])
+
 
     # haskey(optimizer.meta, :truncated_convolution_spread)  || (optimizer.meta[:truncated_convolution_spread] = Vector{Vector{Float64}}())
     # haskey(optimizer.meta, :w90_branch_cut_spread)  || (optimizer.meta[:w90_branch_cut_spread] = Vector{Vector{Float64}}())
@@ -749,26 +782,21 @@ function log(optimizer, U, current_iteration, Ω, ∇Ω², α)
     # haskey(optimizer.meta, :w90_branch_cut_center)  || (optimizer.meta[:w90_branch_cut_center] = Vector{Matrix{Float64}}())
     # haskey(optimizer.meta, :convolutional_center)  || (optimizer.meta[:convolutional_center] = Vector{Matrix{Float64}}())
 
-    # N = optimizer |> scheme |> neighbor_basis_integral |> n_band
-    # append!(optimizer.meta[:truncated_convolution_spread], [all_spread(U, scheme(optimizer), TruncatedConvolution)])
-    # append!(optimizer.meta[:w90_branch_cut_spread], [all_spread(U, scheme(optimizer), W90BranchCut)])
-    # append!(optimizer.meta[:truncated_convolution_center], [hcat(all_center(U, scheme(optimizer), TruncatedConvolution)...)])
-    # append!(optimizer.meta[:w90_branch_cut_center], [hcat(all_center(U, scheme(optimizer), W90BranchCut)...)])
 
-    # mod(current_iteration, 10) == 0 || return
+    mod(current_iteration, 20) == 0 || return
+    haskey(optimizer.meta, :ũ) || return
+    ũ = set_gauge(optimizer.meta[:ũ], U)
+    r̃2 = optimizer.meta[:r̃2]
+    ρ̃ = reciprocal_densities(ũ)
 
-#     ũ = set_gauge(optimizer.meta[:ũ], U)
-#     r̃2 = optimizer.meta[:r̃2]
-#     ρ̃ = reciprocal_densities(ũ)
-
-#    convolutional_center = zeros(3, length(ρ̃))
-#    convolutional_spread = zeros(length(ρ̃))
-#     for i in 1:length(length(ρ̃))
-#         c, σ² = center_spread(ρ̃[i], r̃2)
-#         convolutional_center[:, i] = c
-#         convolutional_spread[i] = σ²
-#     end
-#     append!(optimizer.meta[:convolutional_center], [convolutional_center])
-#     append!(optimizer.meta[:convolutional_spread], [convolutional_spread])
+    convolutional_center = zeros(3, length(ρ̃))
+    convolutional_spread = zeros(length(ρ̃))
+    for i in 1:length(ρ̃)
+        c, σ² = center_spread(ρ̃[i], r̃2)
+        convolutional_center[:, i] = c
+        convolutional_spread[i] = σ²
+    end
+    append!(logger(optimizer)[:convolutional_center], [convolutional_center])
+    append!(logger(optimizer)[:convolutional_spread], [convolutional_spread])
 end
 

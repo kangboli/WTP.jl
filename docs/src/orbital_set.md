@@ -41,11 +41,7 @@ orbital_grid
 ```
 
 ```@docs
-superlattice
-```
-
-```@docs
-supercell
+supergrid
 ```
 
 ```@docs

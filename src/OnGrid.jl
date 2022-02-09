@@ -595,7 +595,9 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     elements!(convolved, abs.(elements(convolved)))
     linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
     r_min = grid(convolved)(linear_index_min)
-    return quadratic_fit(convolved, r_min)
+    result =  quadratic_fit(convolved, r_min)
+    result == nothing && return cartesian(r_min), convolved[r_min]
+    return result
 end
 
 
@@ -621,11 +623,15 @@ function quadratic_fit(o::OnGrid{T}, fitting_center::GridVector{T}) where {T<:Gr
     A = vcat(map(r -> [1, cartesian(r)..., (cartesian(r) .^ 2)...]', fitting_points)...)
     rhs = o[fitting_points]
 
-    solution = A \ rhs
-    d = solution[5:7]
-    b = solution[2:4] ./ (-2d)
-    minima = [1, b..., (b .^ 2)...]' * solution
-    return b, minima
+    try
+        solution = A \ rhs
+        d = solution[5:7]
+        b = solution[2:4] ./ (-2d)
+        minima = [1, b..., (b .^ 2)...]' * solution
+        return b, minima
+    catch SingularException
+        return nothing
+    end
 end
 
 """

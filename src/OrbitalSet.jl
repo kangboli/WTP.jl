@@ -215,17 +215,23 @@ orbital_grid(orbital_set::OrbitalSet) = grid(elements(orbital_set)[1, 1, 1][1])
 Get the superlattice associated with `ũ`, which is the brillouin_zone copied 
 over the entire crystal lattice.
 """
-superlattice(orbital_set::OrbitalSet{UnkBasisOrbital{<:ReciprocalLattice}}) =
-expand(transfrom_grid(orbital_grid(orbital_set)), [size(grid(orbital_set))...])
+superlattice(orbital_set::OrbitalSet{UnkBasisOrbital{T}}) where T <:ReciprocalLattice=
+expand(grid(orbital_set), [size(orbital_grid(orbital_set))...])
+
+superlattice(orbital_set::OrbitalSet{UnkBasisOrbital{T}}) where T <: HomeCell =
+expand(transform_grid(grid(orbital_set)), [size(orbital_grid(orbital_set))...])
 
 """
-    superlattice(u)
+    supercell(u)
 
 Get the supercell associated with `u`, which is the homecell copied 
 over the entire crystal lattice.
 """
 supercell(orbital_set::OrbitalSet{UnkBasisOrbital{T}}) where T <: HomeCell =
 expand(orbital_grid(orbital_set), [size(grid(orbital_set))...])
+
+supercell(orbital_set::OrbitalSet{UnkBasisOrbital{T}}) where T <: ReciprocalLattice =
+expand(transform_grid(orbital_grid(orbital_set)), [size(grid(orbital_set))...])
 
 """
     n_band(orbital_set)
