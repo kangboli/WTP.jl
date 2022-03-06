@@ -595,6 +595,7 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     elements!(convolved, abs.(elements(convolved)))
     linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
     r_min = grid(convolved)(linear_index_min)
+    # println("Convolved:", convolved[r_min])
     result =  quadratic_fit(convolved, r_min)
     result == nothing && return cartesian(r_min), convolved[r_min]
     return result
@@ -616,12 +617,12 @@ This is:
 """
 function quadratic_fit(o::OnGrid{T}, fitting_center::GridVector{T}) where {T<:Grid}
     g = grid(o)
-    fitting_points = reset_overflow.((v -> fitting_center + v).([
+    fitting_points = (v -> fitting_center + v).([
         g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
-        g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]]))
+        g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]])
 
     A = vcat(map(r -> [1, cartesian(r)..., (cartesian(r) .^ 2)...]', fitting_points)...)
-    rhs = o[fitting_points]
+    rhs = o[reset_overflow.(fitting_points)]
 
     try
         solution = A \ rhs

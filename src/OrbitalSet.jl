@@ -1,6 +1,7 @@
 export OrbitalSet,
     init_orbital_set,
     Gauge,
+    random_gauge,
     gauge,
     gauge!,
     set_gauge,
@@ -21,6 +22,9 @@ corresponds to each k-point. The gauge is an instance of `OnGrid`.
 
 By convention (from MLWF), each column of the gauge corresponds to the
 coefficients of a transformed ``\\tilde{u}_{n, k}`` orbital. 
+
+row: bands
+col: wanniers
 
 `` | \\tilde{u}_{n, k} \\rangle = \\sum_{m} | u_{m, k} \\rangle U^{k}_{m, n} ``
 """
@@ -68,6 +72,21 @@ function Gauge(grid::T, n::Integer) where {T<:BrillouinZone}
     U = Gauge(grid)
     reset_gauge!(U, n)
     return U
+end
+
+"""
+    random_gauge(brillouin_zone::BrillouinZone, n::Int, ϵ=2π)
+
+Create a random gauge.
+"""
+function random_gauge(brillouin_zone::BrillouinZone, n::Int, ϵ=2π)
+    gauge = Gauge(brillouin_zone, n)
+    for k in brillouin_zone
+        m = rand(ComplexF64, n, n) * ϵ
+        U, _, Vt = svd(m) 
+        gauge[k] = U * Vt
+    end
+    return gauge
 end
 
 """

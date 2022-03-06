@@ -1,9 +1,14 @@
 """
-Horrible code for dealing with horrible file formats.
-
 This file contains hacks for interfacing with QE and Wannier90. 
-Only code within this file can assume knowledge of the shenanigans
+Only code within this file can assume knowledge of the traps
 in the code of QE and Wannier90.
+
+The interface has two levels. Level one is a one-to-one translation of
+QE/Wannier90 file structure to Julia structs. Level two maps these structs to
+programming abstractions in the package. Level one should entirely abstract away
+QE/Wannier90, of which level two must be oblivious. This also means 
+that the rest of the package, which interface through level two, must be oblivious
+of QE/Wannier90.
 """
 
 using FortranFiles
@@ -23,7 +28,8 @@ export WFC,
     brillouin_zone_from_k_coordinates,
     estimate_sizes,
     i_kpoint_map,
-    single_orbital_from_wave_functions
+    single_orbital_from_wave_functions,
+    dump
 
 
 function angry_parse(::Type{T}, n) where {T}
@@ -608,7 +614,7 @@ julia> mmn.n_kpoint, mmn.n_neighbor
 function MMN(mmn_filename::String, ad_hoc_gamma = false)
     file = open(mmn_filename)
     parse_complex(number) =
-        parse(Float32, number[1:20]) + parse(Float32, number[21:end]) * 1im
+        parse(Float64, number[1:20]) + parse(Float64, number[21:end]) * 1im
     _the_first_line_is_comment = readline(file)
     n_band, n_kpoint, n_neighbor = parse_line(readline(file), Int64)
     mmn = MMN(n_band, n_kpoint, n_neighbor, Dict(), Dict())
@@ -636,40 +642,6 @@ function MMN(mmn_filename::String, ad_hoc_gamma = false)
     return mmn
 end
 
-
-"""
-    NeighborIntegral(mmn, k_map)
-
-Construct a `NeighborIntegral` from a `MMN` object and a `k_map`.
-
-We like to convert this raw data to `NeighborIntegral` before looking up
-integrals from it. One problem that we encounter is that the k-points are stored
-as a single integer in the `.mmn` files. To find out which k-points these
-integers correspond to, we have to construct a mapping using the `wfcX.dat`
-files (use `i_kpoint_map`).
-
-```@jldoctest wfc
-julia> neighbor_integral = NeighborIntegral(mmn, k_map);
-julia> neighbor_integral[brillouin_zone[0, 0, 0], brillouin_zone[1, 0, 0]][:, :]
-4×4 Matrix{ComplexF64}:
-   0.766477+0.633678im    0.0796606-0.00680469im  -3.64646e-7-3.84398e-7im   4.348e-9-2.891e-8im
- -0.0205239-0.0122884im    0.498436-0.12016im        0.127234-0.327676im     0.121905+0.521335im
- -0.0158759-0.0144468im    0.459743-0.0173616im      -0.52219+0.121039im    -0.257164-0.358587im
- -0.0131809-0.00142574im   0.223027-0.176081im       0.606245-0.0237135im   0.0852059-0.53885im
-```
-"""
-function NeighborIntegral(mmn::MMN, k_map::Dict{Int64,KPoint})
-    n = NeighborIntegral()
-
-    for ((i_kpoint1, i_kpoint2), integral) in mmn.integrals
-        kpoint = k_map[i_kpoint1]
-        neighbor = add_overflow(k_map[i_kpoint2], mmn.translations[i_kpoint1=>i_kpoint2])
-        neighbor = add_overflow(neighbor, -overflow(kpoint))
-        kpoint = reset_overflow(kpoint)
-        n[kpoint, neighbor] = integral
-    end
-    return n
-end
 
 """
 The `.amn` files are used by Wannier90 for storing the gauge transform.
@@ -703,7 +675,7 @@ function AMN(amn_filename::String)
 
     function update_gauge(i_kpoint, m, n, value)
         lock(c) do
-            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_band)))
+            haskey(amn.gauge, i_kpoint) || (amn.gauge[i_kpoint] = zeros(ComplexFxx, (n_band, n_wannier)))
             amn.gauge[i_kpoint][m, n] = value
         end
     end
@@ -714,7 +686,7 @@ function AMN(amn_filename::String)
             m, n, i_kpoint, real_part, complex_part =
                 split(strip(lines[line_number]), r"\s+")
             m, n, i_kpoint = (s -> parse(Int64, s)).([m, n, i_kpoint])
-            real_part, complex_part = (s -> parse(Float32, s)).([real_part, complex_part])
+            real_part, complex_part = (s -> parse(Float64, s)).([real_part, complex_part])
             update_gauge(i_kpoint, m, n, real_part + complex_part * 1im) 
         end
     end
@@ -722,6 +694,31 @@ function AMN(amn_filename::String)
     return amn
 end
 
+"""
+    dump(amn, amn_filename, scdm_parameters=(0, 0))
+
+Write an `AMN` object to disk as a `.amn` file.
+"""
+function dump(amn::AMN, amn_filename::String; scdm_parameters=(0, 0))
+    file = open(amn_filename, "w+")
+    write(file, "( ͡° ͜ʖ ͡°)\n")
+    if scdm_parameters != (0, 0)
+        
+        @printf file "%8i%8i%8i  %10.8f%10.8f\n" amn.n_band amn.n_kpoint amn.n_wannier scdm_parameters...
+    else
+        
+        @printf file "%12i%12i%12i\n" amn.n_band amn.n_kpoint amn.n_wannier
+    end
+
+    for i = 1:amn.n_kpoint
+        for (r, c) in Iterators.product(1:amn.n_band, 1:amn.n_wannier)
+            value = amn.gauge[i][r, c]
+            @printf file "%5i%5i%5i%18.12f%18.12f\n" r c i real(value) imag(value)
+        end
+    end
+
+    close(file)
+end
 
 """
     Gauge(grid, amn, k_map, [orthonormalization = true])
@@ -743,7 +740,7 @@ julia> U[brillouin_zone[0, 0, 0]][:, :]
   0.0694477+0.124822im    0.516605+0.173543im    0.152318-0.411003im   -0.694672+0.0889086im
 ```
 """
-function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int64,KPoint}, orthonormalization = true)
+function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int,KPoint}, orthonormalization = true)
     gauge = Gauge(grid)
 
     orthonormalize(A::AbstractMatrix) =
@@ -756,4 +753,21 @@ function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int64,KPoint}, orthonormalizati
     end
 
     return gauge
+end
+
+"""
+    AMN(U, k_map)
+
+Construct an `AMN` object from a gauge `U`. 
+"""
+function AMN(U::Gauge, k_map::Dict{Int, KPoint})
+    n_band, n_wannier = size(elements(U)[1])
+    
+    brillouin_zone = grid(U)
+    amn = AMN(n_band, length(brillouin_zone), n_wannier, Dict{Int, Matrix{ComplexFxx}}())
+    for (i_kpoint, k) in k_map
+        amn.gauge[i_kpoint] = U[k]
+    end
+
+    return amn
 end
