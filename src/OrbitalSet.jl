@@ -49,6 +49,14 @@ Gauge(grid::T) where {T<:BrillouinZone} =
     Gauge{T}(grid, Array{Matrix{ComplexFxx},n_dims(T)}(undef, size(grid)))
 
 """
+    Gauge(on_grid)
+
+Construct a gauge from an object on a grid.
+"""
+Gauge(on_grid::OnGrid{T}) where {T <: BrillouinZone} =
+    Gauge{T}(grid(on_grid), elements(on_grid))
+
+"""
     Gauge(brillouin_zone, n)
 
 Create an identity gauge with ``n \\times n`` matrices as the gauge.
