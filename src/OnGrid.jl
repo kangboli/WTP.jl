@@ -592,12 +592,12 @@ julia> center_spread(fft(abs2(square_normalize(map(r->r==homecell[0, 0, 0], home
 """
 function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLattice}
     convolved = ifft(õ * r̃2, false)
-    elements!(convolved, abs.(elements(convolved)))
+    elements!(convolved, real.(elements(convolved))) # Merely converting to real. No approximation is made here.
     linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
     r_min = grid(convolved)(linear_index_min)
     # println("Convolved:", convolved[r_min])
     result =  quadratic_fit(convolved, r_min)
-    result == nothing && return cartesian(r_min), convolved[r_min]
+    result === nothing && return cartesian(r_min), convolved[r_min]
     return result
 end
 
@@ -615,24 +615,27 @@ This is:
 
 [1, rᵢ, rᵢ²] [c + ∑ bᵢ² dᵢ, -2 bᵢ dᵢ, dᵢ]' = y
 """
-function quadratic_fit(o::OnGrid{T}, fitting_center::GridVector{T}) where {T<:Grid}
+function quadratic_fit(o::OnGrid{T}, fitting_center::AbstractGridVector{T}) where {T<:Grid}
     g = grid(o)
-    fitting_points = (v -> fitting_center + v).([
-        g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
-        g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]])
+    fitting_points = (v -> fitting_center + v).(quadratic_fitting_neighbors(g))
 
     A = vcat(map(r -> [1, cartesian(r)..., (cartesian(r) .^ 2)...]', fitting_points)...)
     rhs = o[reset_overflow.(fitting_points)]
 
     try
         solution = A \ rhs
-        d = solution[5:7]
-        b = solution[2:4] ./ (-2d)
+        d = solution[n_dims(T)+2:2*n_dims(T)+1]
+        b = solution[2:n_dims(T)+1] ./ (-2d)
         minima = [1, b..., (b .^ 2)...]' * solution
         return b, minima
     catch SingularException
         return nothing
     end
+end
+
+function quadratic_fitting_neighbors(g::T) where T <: Grid
+        return [g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
+        g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]]
 end
 
 

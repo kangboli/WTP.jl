@@ -141,7 +141,7 @@ function commit_gauge!(u::OrbitalSet)
         # return [UnkBasisOrbital(reciprocal_lattice, reshape(c, size(reciprocal_lattice)...), k, n) for (n, c) in enumerate(eachcol(Ψ))]
     end
 
-    Threads.@threads for k in collect(brillouin_zone)
+    for k in collect(brillouin_zone)
         transform!(k)
     end
     reset_gauge!(gauge(u), n_band(u))
@@ -214,8 +214,8 @@ band:
 
 ```
 """
-function init_orbital_set(grid::BrillouinZone, ::Type{T}) where {T<:OnGrid}
-    elements = Array{Vector{T},3}(undef, size(grid))
+function init_orbital_set(grid::S, ::Type{T}) where {S <: Grid, T<:OnGrid}
+    elements = Array{Vector{T}, n_dims(S)}(undef, size(grid))
     return OrbitalSet(grid, elements, Gauge(grid))
 end
 
@@ -496,12 +496,13 @@ band:
 """
 wannier_orbitals(ũ::OrbitalSet) = ũ(:)
 
-function (ũ::OrbitalSet)(::Colon)
+function (ũ::OrbitalSet{UnkBasisOrbital{T}})(::Colon) where {T<:ReciprocalLattice}
     # phase === nothing && (phase = phase_factors(u))
     brillouin_zone = grid(ũ)
     reciprocal_lattice = orbital_grid(ũ)
 
-    reciprocal_supercell = expand(make_grid(ReciprocalLattice3D, basis(brillouin_zone), domain(brillouin_zone)), [size(reciprocal_lattice)...])
+    # reciprocal_supercell = expand(make_grid(typeof(reciprocal_lattice), basis(brillouin_zone), domain(brillouin_zone)), [size(reciprocal_lattice)...])
+    reciprocal_supercell = supercell(ũ) |> transform_grid
 
     orbital_elements = zeros(ComplexFxx, length(brillouin_zone) * length(reciprocal_lattice), n_band(ũ))
     Threads.@threads for k in collect(brillouin_zone)
@@ -514,7 +515,7 @@ function (ũ::OrbitalSet)(::Colon)
     end
 
     return [UnkBasisOrbital(reciprocal_supercell, reshape(orbital_elements[:, n],
-            size(reciprocal_supercell)), brillouin_zone[0, 0, 0], n) |> square_normalize! for n in 1:n_band(ũ)]
+            size(reciprocal_supercell)), brillouin_zone(1), n) |> square_normalize! for n in 1:n_band(ũ)]
 end
 
 """

@@ -1,4 +1,4 @@
-export Grid, domain, domain_matrix, basis_matrix, set_domain, basis, dual_grid,
+export Grid, GridCache, center, domain, domain_matrix, basis_matrix, set_domain, basis, dual_grid,
     HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
     x_min, x_max, y_min, y_max, z_min, z_max,
     mins, maxes, HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink, make_grid, linear_index
@@ -63,8 +63,8 @@ basis:
 """
 function make_grid(::Type{T}, basis, domain) where {T<:Grid}
     size = _compute_size(domain)
-    domain_matrix = _convert_domain_to_matrix(domain)
-    cache = GridCache(vector3_to_matrix(basis),
+    domain_matrix = _convert_domain_to_matrix(T, domain)
+    cache = make_grid_cache(T, vector3_to_matrix(basis),
         domain_matrix,
         size,
         _compute_center(size, domain),
@@ -137,7 +137,7 @@ julia> domain(homecell)
 """
 domain(grid::Grid) = grid.domain
 
-_convert_domain_to_matrix(domain) = SMatrix{3,2,Int}(vcat([[d[1] d[2]] for d in domain]...))
+_convert_domain_to_matrix(::Type{T}, domain) where T <: Grid = SMatrix{n_dims(T),2,Int}(vcat([[d[1] d[2]] for d in domain]...))
 
 """
     domain_matrix(grid)
@@ -174,11 +174,11 @@ basis:
     ket: 0.000, 0.000, 0.500
 ```
 """
-function set_domain(grid::Grid, new_domain::Tuple)
+function set_domain(grid::T, new_domain::Tuple) where T <: Grid
     grid = @set grid.domain = new_domain
     size = _compute_size(new_domain)
-    domain_matrix = _convert_domain_to_matrix(new_domain)
-    grid = @set grid._cache = GridCache(
+    domain_matrix = _convert_domain_to_matrix(T, new_domain)
+    grid = @set grid._cache = make_grid_cache(T,
         basis_matrix(grid),
         domain_matrix,
         size,
@@ -652,6 +652,9 @@ mutable struct GridCache
     _mins::NTuple{3,Integer}
     _maxes::NTuple{3,Integer}
 end
+
+make_grid_cache(::Type{T}, _basis_matrix, _domain_matrix, _size, _center, _mins, _maxes) where T <: Grid =
+    GridCache(_basis_matrix, _domain_matrix, _size, _center, _mins, _maxes)
 
 """
 There are four basic grids (two pairs of dual grids) in Condensed Phase on which
