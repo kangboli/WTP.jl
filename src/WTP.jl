@@ -6,6 +6,7 @@ using Printf
 using FFTW
 using ProgressMeter
 using Folds
+using DataStructures
 
 const ComplexFxx = ComplexF64
 const overflow_detection = false
