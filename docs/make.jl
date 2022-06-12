@@ -14,7 +14,7 @@ pages = [
     "Fucntion on a Grid" => "on_grid.md",
     "Orbital" => "orbital.md",
     "Orbital Set " => "orbital_set.md",
-    "Center and Spread" => "center_spread.md"
+    # "Center and Spread" => "center_spread.md"
 ]
 )
 

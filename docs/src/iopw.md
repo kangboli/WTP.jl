@@ -74,9 +74,10 @@ MMN
 MMN(::String)
 ```
 
+<!-- 
 ```@docs
 NeighborIntegral(::MMN, ::Dict{Int64, KPoint})
-```
+``` -->
 
 !!! note 
 

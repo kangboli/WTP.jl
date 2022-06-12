@@ -1,7 +1,25 @@
-export Grid, GridCache, center, domain, domain_matrix, basis_matrix, set_domain, basis, dual_grid,
-    HomeCell, ReciprocalLattice, BrillouinZone, RealLattice, transform_grid, snap,
-    x_min, x_max, y_min, y_max, z_min, z_max,
-    mins, maxes, HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, n_dims, array, invert_grid, shrink, make_grid, linear_index
+export Grid, 
+    make_grid, 
+    basis,
+    basis_matrix,
+    domain,
+    domain_matrix,
+    set_domain,
+    center, 
+    HomeCell, 
+    ReciprocalLattice, 
+    BrillouinZone, 
+    RealLattice, 
+    dual_grid,
+    transform_grid, 
+    snap,
+    x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes, 
+    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, 
+    n_dims, 
+    array, 
+    invert_grid, 
+    shrink, 
+    linear_index
 
 """
 WTP provides *non-orthogonal 3D periodic* grids that support
@@ -206,7 +224,7 @@ basis:
     ket: 0.000, 0.000, 0.500
 ```
 """
-function expand(grid::Grid, factors::Vector{Int} = [2, 2, 2])
+function expand(grid::Grid, factors::Vector{Int}=[2, 2, 2])
     return set_domain(grid, size_to_domain(factors .* size(grid)))
 end
 

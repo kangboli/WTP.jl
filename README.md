@@ -1,7 +1,6 @@
 # WTP
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://kangboli.github.io/WTP.jl/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://kangboli.github.io/WTP.jl/dev)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://wtp.kangbo.dev)
 ## Introduction
 
 WTP.jl provides a **thin layer of abstractions** for processing condense-phase
