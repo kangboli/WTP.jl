@@ -1,4 +1,5 @@
-using Coverage, Dates
+using Dates
+# using Coverage 
 
 export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set, process_coverage
 
@@ -179,11 +180,11 @@ function set(object, modify_field::Symbol, value)
     return typeof(object)(values...)
 end
 
-function process_coverage()
-    coverage = process_folder("src")
-    covered, total = get_summary(coverage)
-    @printf("Coverage is at %.2f percent\n", 100*covered/total)
-    LCOV.writefile("coverage/lcov_$(now()).info", coverage)
-    clean_folder("src")
-    clean_folder("test")
-end
+# function process_coverage()
+#     coverage = process_folder("src")
+#     covered, total = get_summary(coverage)
+#     @printf("Coverage is at %.2f percent\n", 100*covered/total)
+#     LCOV.writefile("coverage/lcov_$(now()).info", coverage)
+#     clean_folder("src")
+#     clean_folder("test")
+# end

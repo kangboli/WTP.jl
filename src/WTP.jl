@@ -25,5 +25,6 @@ include("OrbitalSet.jl")
 include("IOPW.jl")
 include("FileExport.jl")
 include("Operator.jl")
+include("Snoop.jl")
 
 end

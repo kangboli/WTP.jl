@@ -40,7 +40,7 @@ using LinearAlgebra
 
     # Check that the center and the spread are not too far away from W90.
     for i = 1:4
-        c, σ = center_spread(reciprocal_densities[i], r̃2)
+        c, σ = center_spread(ρ̃_list[i], r̃2)
         # println(c)
         # println(σ)
         for j = 1:3

@@ -158,7 +158,7 @@ end
 """
     dagger!(orbital)
 
-Complex conjutate an orbital in place. 
+Complex conjugate an orbital in place. 
 """
 function dagger!(orbital::UnkBasisOrbital)
     orbital.elements = conj.(elements(orbital))
@@ -174,7 +174,6 @@ function resemble(orbital::UnkBasisOrbital{S}, ::Type{T}, new_elements=nothing) 
     end
     UnkBasisOrbital(g, new_elements, kpoint(orbital), index_band(orbital)) 
 end
-
 
 function Base.show(io::IO, orbital::UnkBasisOrbital)
     ket(orbital) ? print(io, "ket\n") : print(io, "bra\n")

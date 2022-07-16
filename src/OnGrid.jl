@@ -22,7 +22,8 @@ export OnGrid,
     # sparsify!,
     expand,
     center_spread,
-    compute_r2
+    compute_r2,
+    cartesian_interpolate
 
 """
 The orbitals are defined somewhat abstractly as functions on grids. The grid
@@ -601,42 +602,90 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     return result
 end
 
+struct QuadraticFunction
+    b::Vector{Number}
+    c::Number
+    d::Vector{Number}
+end
+
+coefficients(q::QuadraticFunction) = q.b, q.c, q.d
+
+(q::QuadraticFunction)(p::AbstractVector) = let (b, c, d) = coefficients(q)
+    (p - b)' * diagm(d) * (p - b) + c
+end
 
 
 """
-A seven-points fitting method for the convolution. 
+    quadratic_fit(o, fitting_center)
+
+Do a quadratic fit around `fitting_center` and return the mimima and the minimum.
+"""
+function quadratic_fit(o::OnGrid{T}, fitting_center::AbstractGridVector{T}) where {T<:Grid}
+    q = quadratic_interpolation(o, fitting_center)
+    return q === nothing ? nothing : (q.b, q.c)
+end
+
+
+"""
+    quadratic_interpolation(o, fitting_center)
+
+A seven-points quadratic interpolation.
 
 f(r) = (r-b)ᵀ D (r - b) + c
 
-D is diagonal because r² = x² + y² + z² is additively separable.
-This is:
+For the purpose of the spread convolution, D is diagonal because r² = x² + y² +
+z² is additively separable. This is:
 
  c + ∑ᵢ₌₁³ bᵢ² dᵢ - 2 bᵢ dᵢ rᵢ + dᵢ rᵢ² = y
 
 [1, rᵢ, rᵢ²] [c + ∑ bᵢ² dᵢ, -2 bᵢ dᵢ, dᵢ]' = y
 """
-function quadratic_fit(o::OnGrid{T}, fitting_center::AbstractGridVector{T}) where {T<:Grid}
+function quadratic_interpolation(
+    o::OnGrid{T},
+    fitting_center::AbstractGridVector{T},
+) where {T<:Grid}
     g = grid(o)
     fitting_points = (v -> fitting_center + v).(quadratic_fitting_neighbors(g))
 
     A = vcat(map(r -> [1, cartesian(r)..., (cartesian(r) .^ 2)...]', fitting_points)...)
+    # A is a (degree 2) vandermonde matrix and cannot be singular.
     rhs = o[reset_overflow.(fitting_points)]
 
-    try
-        solution = A \ rhs
-        d = solution[n_dims(T)+2:2*n_dims(T)+1]
-        b = solution[2:n_dims(T)+1] ./ (-2d)
-        minima = [1, b..., (b .^ 2)...]' * solution
-        return b, minima
-    catch SingularException
-        return nothing
-    end
+    solution = A \ rhs 
+    d = solution[(n_dims(T) + 2):(2 * n_dims(T) + 1)]
+    b = ((i) -> abs(d[i]) > 1e-7 ? solution[1+i] / (-2d[i]) : cartesian(fitting_center)[i]).(1:n_dims(T))
+    # b = solution[2:(n_dims(T) + 1)] ./ (-2d)
+    c = solution[1] - sum(i -> abs2(b[i]) * d[i], 1:n_dims(T))
+    return QuadraticFunction(b,c,d)
 end
 
 function quadratic_fitting_neighbors(g::T) where T <: Grid
         return [g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
         g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]]
 end
+
+
+"""
+    cartesian_interpolate(orbital, p)
+
+Find the value of the orbital at an arbitrary Cartesian point `p` by quadratically
+interpolating at the nearest grid point to `p` 
+
+"""
+function cartesian_interpolate(o::OnGrid{S}, p::AbstractVector) where S <: Grid
+    origin = snap(grid(o), p)
+    has_overflow(origin) && return 0im
+    quadratic_interpolation(o, origin)(p)
+end
+
+# x, y, z = basis_matrix(g) \ p - coefficients(origin)
+# is_positive(x) = x > 1 ? 1 : -1
+# neighbor_steps = [g[is_positive(x), 0, 0], g[0, is_positive(y), 0], g[0, 0, is_positive(z)]]
+# neighbors = (d->reset_overflow(origin + d)).(neighbor_steps)
+# lhs = vcat(float(coefficients.(neighbor_steps))'...) 
+# rhs = orbital[neighbors] .- orbital[origin]
+# a, b, c = lhs \ rhs
+# [a, b, c]' * [x, y, z] + orbital[origin]
 
 
 
