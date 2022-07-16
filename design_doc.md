@@ -185,66 +185,71 @@ is abstracted away from the programming interface.
 
 ## Programming Guide and Rants
 
-Take a look at the programming practices of Quantum Espresso, and avoid them all.
+Take a look at what the Physicists do, and you know what to avoid.
 
 ### Naming
 
-**Abbreviations and acronyms are forbidden**.  
+> Abbreviations and acronyms are forbidden.
 
 Better be verbose than cryptic. If a name is too long, introduce a **single**
-letter alias within a small scope (20 SLoC) so that the full name is visible on the same page.
-Never abbreviate anything with a hideous sequence of consonants. I would rather work with code written in Russian.
+letter alias within a small scope (20 SLoC) so that the full name is visible on
+the same page. Especially don't abbreviate anything with a hideous sequence of
+consonants.
 
 The only special cases are 
 
 1. The acronym is common knowledge. For example, "fft" (fast Fourier transform) is not a problem, but "bz" (Brillouin Zone) is not acceptable. It may very well mean Benzene, buzz, booz, bizarre, or Benz.
-2. When interfacing with QE/Wannier90. One can reuse the mystical variable names to make the correspondence explicit.
+2. When interfacing with other packages. One can reuse the mystical variable names to make the correspondence explicit.
 
-Don't spell the same word two ways, especially when they are next to each other. 
+Also, don't spell the same word two ways, especially when they are next to each other. 
 Write "localization" instead of "localisation".
 
 ### Global Variables.
 
-**Mutable global variables are forbidden**. 
+> Mutable global variables are forbidden. 
 
 All mutable variables should be local. Global variables are allowed only for
-constants. It is universally agreed upon that using mutable global variables is
-a bad practice.  I must mention that QE shares global variables across different
-programs! It is remarkable that one can do this can the program will still work.
+constants. If one wants to share a state, pass it as an argument.
 
 
 ### Indentation
 
-**No more than two levels of indentation is allowed for control flow**.
+> More than two levels of indentation is considered excessive.
 
-Code becomes thoroughly incomprehensible when deeply nested. Indentations in QE 
-can wrap around the monitor if you are in portrait mode. Generally, it is never necessary to
-indent more than 2 levels. To reduce the level of indentation, there is a handful of tricks:
+Code becomes thoroughly incomprehensible when deeply nested. Indentations in
+older electronic structure code can wrap around the monitor if you are in
+portrait mode. Theoretically, it is never necessary to indent more than 2 levels.
+To reduce the level of indentation, there is a handful of tricks:
 
 1. Abstract any indented piece of code into a function.
 2. Use `&&`, `||`, and `? :` expressions instead of `if` statement for early `return`/`continue`.
-3. Use broadcasting/comprehension for parallel code, and recursions for complex iterative code.
-    No `for`/`while` loops shall be nested.
+3. Use broadcasting/comprehension for parallel code, and recursions for complex
+   iterative code instead of nested `for`/`while` loops.
 
-### Write code that does not require explanation.
+### Comments
 
-Avoid using comments in the source code for documentation purposes.  Use
-sensible variable names and function names. If a piece of code is obscure,
-refactor it into a function and give it a sensible name.
+> If a piece of code is obscure and needs comments, refactor it until it does not.
 
-Writing self-documenting code gives several advantages
-
-1. gives a literal and algorithmic explanation instead of some figurative allegories that have to be interpreted.
-2. remains consistent after code change. People don't update comments when they
-   change the code, especially when they didn't write the comments themselves.
-
-Unless you are writing Fortran or C, having to explaining your code with
-comments usually means that you are doing something stylistically wrong with
-your code. If the code is so complex that it cannot be written in a
-comprehensible way even with unicode, rewriting it in English will only make it
-worse. In that case, it probably requires a dedicated document.
+Avoid using comments in the source code for documentation purposes. If the code
+itself cannot be written in a comprehensible way, it cannot be explained in
+some figurative allegories that are to be interpreted. Comments also don't
+update themselves when you update the code, after which the comments become
+lies and go on to gaslight future developers.
 
 
+### Parallelization
 
+> It won't be MPI.
 
+I'm not yet sure about how to go about this, but I will almost certainly not
+use MPI. One can parallelize code with such things and get good performance,
+but the sacrifice is everything else
+
+- correctness: MPI leaves all the concurrency crap to you.
+- flexibility: No more multiple dispatch, functional programming, and meta programming. 
+- readability: you are no longer reading one program at a time.
+- maintainability: tests now have to be run on a cluster.
+- usability: the user have to configure and use MPI to try your package.
+- fault tolerance: you have to implement a `restart` mode somewhere.
+- modularity: MPI state is global. the whole point of modularity is to avoid sharing states.
 
