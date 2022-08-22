@@ -1,4 +1,4 @@
-# WTP
+# WTP Design Documentation
 
 ## Conventions for Grids
 
@@ -121,12 +121,14 @@ but also the grid on which it is defined. A homecell will be transformed into a
 reciprocal lattice; a Brillouin zone will be transformed into a Crystal lattice;
 and vice versa.
 
-## The MMN File
+## File IO
+
+### The MMN File
 
 Note that the following description does not apply when the gamma trick is used.
 See the gamma trick section for additional information.
 
-### The Header
+#### The Header
 
 The first line is the date of creation (cringe). 
 The second line is a list of three integers. 
@@ -135,7 +137,7 @@ The second line is a list of three integers.
 n_band      n_kpoint       n_neighbor
 ```
 
-### Neighbors
+#### Neighbors
 
 Each k-point has `n_neighbor` neighbors. For each pair of k-points and neighbors,
 there is a line of five integers
@@ -150,14 +152,14 @@ called an **encryption**. The mapping is stored in the `.wave_functions` files, 
 
 TODO: `gx gy gz` 
 
-### The Matrices 
+#### The Matrices 
 
 The matices are stored in column major order.
 So line `(i-1) * n_band + j` stores row `j` column `i`, which
 is the inner product of band `j` of `k` and band `i` of `k+b`.
 In other words, $\langle u_{j k} | u_{i k+b} \rangle$ is at `(i-1) * n_band + j`.
 
-## The Gamma Trick
+### The Gamma Trick
 
 TODO: Figure out why there is only factor of 2 instead of 8 reduction.
 
@@ -166,7 +168,7 @@ In my opinion, it really shouldn't be a stand-along trick, which
 pollutes the code base with an exception case all over the place.
 It should be abstracted away as part of the storage layer.
 
-### The Trick.
+#### The Trick.
 
 The trick is that only half (why not 1/8) of the wave-function needs to be 
 stored when the calculation is `gamma_only`. The question that is nowhere

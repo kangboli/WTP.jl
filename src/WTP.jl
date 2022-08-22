@@ -23,6 +23,7 @@ include("Orbital.jl")
 include("OrbitalSet.jl")
 include("IOPW.jl")
 include("FileExport.jl")
+include("Cube.jl")
 include("Operator.jl")
 include("Snoop.jl")
 

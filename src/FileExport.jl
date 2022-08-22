@@ -11,8 +11,8 @@ function export_to_gaussian_cube(
     homecell = grid(u[gamma_point][1])
 
     file = open(filename, "w")
-    write(file, "The first line and the second line are comments,\n")
-    write(file, "but I don't now what to say.\n")
+    write(file, "The first two lines must tell a joke,\n")
+    write(file, "the parser won't work unless tickled.\n")
     origin_x, origin_y, origin_z = cartesian(homecell[0, 0, 0])
     @printf(file, "%i %.8f %.8f %.8f %i\n",
             length(atoms),
