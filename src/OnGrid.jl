@@ -622,7 +622,8 @@ Do a quadratic fit around `fitting_center` and return the mimima and the minimum
 """
 function quadratic_fit(o::OnGrid{T}, fitting_center::AbstractGridVector{T}) where {T<:Grid}
     q = quadratic_interpolation(o, fitting_center)
-    return q === nothing ? nothing : (q.b, q.c)
+    # return (q.b, q.c)
+    return (q.b, q.c)
 end
 
 
@@ -647,15 +648,17 @@ function quadratic_interpolation(
     g = grid(o)
     fitting_points = (v -> fitting_center + v).(quadratic_fitting_neighbors(g))
 
-    A = vcat(map(r -> [1, cartesian(r)..., (cartesian(r) .^ 2)...]', fitting_points)...)
+    A = vcat(map(r -> [1, cartesian(r)[1:n_dims(T)]..., (cartesian(r) .^ 2)[1:n_dims(T)]...]', fitting_points)...)
     # A is a (degree 2) vandermonde matrix and cannot be singular.
     rhs = o[reset_overflow.(fitting_points)]
 
     solution = A \ rhs 
     d = solution[(n_dims(T) + 2):(2 * n_dims(T) + 1)]
-    b = ((i) -> abs(d[i]) > 1e-7 ? solution[1+i] / (-2d[i]) : cartesian(fitting_center)[i]).(1:n_dims(T))
+    b = ((i) -> abs(d[i]) > 1e-3 ? solution[1+i] / (-2d[i]) : cartesian(fitting_center)[i]).(1:n_dims(T))
+    # b = ((i) -> solution[1+i] / (-2d[i])).(1:n_dims(T))
     # b = solution[2:(n_dims(T) + 1)] ./ (-2d)
-    c = solution[1] - sum(i -> abs2(b[i]) * d[i], 1:n_dims(T))
+    # c = solution[1] - sum(i -> abs(d[i]) > 1e-3 ? abs2(b[i]) * d[i] : o[fitting_center], 1:n_dims(T))
+    c = [1, b..., (b .^ 2)...]' * solution
     return QuadraticFunction(b,c,d)
 end
 
@@ -674,7 +677,7 @@ interpolating at the nearest grid point to `p`
 """
 function cartesian_interpolate(o::OnGrid{S}, p::AbstractVector) where S <: Grid
     origin = snap(grid(o), p)
-    has_overflow(origin) && return 0im
+    # has_overflow(origin) && return 0im
     quadratic_interpolation(o, origin)(p)
 end
 

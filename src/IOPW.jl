@@ -24,6 +24,7 @@ export WFC,
     orbitals_from_unk,
     MMN,
     AMN,
+    UMAT,
     wave_function_basis,
     brillouin_zone_from_k_coordinates,
     estimate_sizes,
@@ -644,6 +645,56 @@ end
 
 
 """
+The `seedname_u.mat` file.
+
+From Wannier90 User guide.
+
+OUTPUT. Written if write_u_matrices = .TRUE.. The first line gives the date and
+time at which the file was created. The second line states the number of
+kpoints num_kpts and the number of wannier functions num_wann twice. The third
+line is empty.
+
+"""
+struct UMAT
+    n_band::Int64
+    n_kpoint::Int64
+    u_matrices::Dict{Vector{Float64}, Matrix{ComplexFxx}}
+end
+
+
+"""
+    UMAT(u_mat_filename)
+
+Create a UMAT object from a file
+"""
+function UMAT(u_mat_filename::String)
+    file = open(u_mat_filename)
+    parse_complex(number) =
+        parse(Float64, number[1:16]) + parse(Float64, number[17:end]) * 1im
+    _the_first_line_is_comment = readline(file)
+    n_kpoint, n_band, _ = parse_line(readline(file), Int64)
+    umat = UMAT(n_band, n_kpoint, Dict())
+    lines = readlines(file)
+
+    function construct_matrix_from(start::Integer)
+        mat = zeros(ComplexF64, n_band, n_band)
+        Threads.@threads for j = 1:n_band 
+            mat[j, :] = (i->parse_complex(lines[start+(i-1)*n_band+j])).(1:n_band)
+        end
+        return mat
+    end
+
+    r = n_band^2 + 2
+    for l = 1:n_kpoint
+        start = (l-1) * r + 1
+        k_fraction = parse_line(lines[start+1], Float64)
+        umat.u_matrices[k_fraction] = construct_matrix_from(start+1)
+    end
+    return umat
+end
+
+
+"""
 The `.amn` files are used by Wannier90 for storing the gauge transform.
 """
 struct AMN
@@ -754,6 +805,24 @@ function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int,KPoint}, orthonormalization
 
     return gauge
 end
+
+"""
+    Gauge(grid, umat)
+
+Create a gauge from a `UMAT` object and a `grid` (brillouin_zone).
+"""
+function Gauge(grid::Grid, umat::UMAT)
+    gauge = Gauge(grid)
+
+    find_second_smallest(x) = sort(unique(x))[2]
+    k_unit_fraction = abs.(hcat(keys(umat.u_matrices)...)) |> eachrow  .|> find_second_smallest
+
+    for (k, u) in umat.u_matrices
+        gauge[grid[Int.(k ./ k_unit_fraction)...]] = u
+    end
+    return gauge
+end
+
 
 """
     AMN(U, k_map)
