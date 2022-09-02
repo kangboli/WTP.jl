@@ -24,4 +24,17 @@ using LinearAlgebra
     @test amn_3.n_band == amn.n_band
     @test amn_3.n_kpoint == amn.n_kpoint
     @test amn_3.n_wannier == amn.n_wannier
+
+    ũ = orbital_set_from_save(wave_functions_list)
+    wanniers = ũ(:)
+    ρ = abs2(wanniers[1])
+    c = to_cube(ρ)
+    a = make_atom(AtomInstance, 16, grid(ρ), [1/16, 1/16, 1/16])
+    b = make_atom(AtomInstance, 24, grid(ρ), [1/16, 3/16, 5/16])
+    element_type(a)
+    element_type(b)
+
+    c = to_cube(ρ, [a, b])
+    write_cube(c, "si.cube")
+
 end

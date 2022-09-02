@@ -654,7 +654,10 @@ function quadratic_interpolation(
 
     solution = A \ rhs 
     d = solution[(n_dims(T) + 2):(2 * n_dims(T) + 1)]
-    b = ((i) -> abs(d[i]) > 1e-3 ? solution[1+i] / (-2d[i]) : cartesian(fitting_center)[i]).(1:n_dims(T))
+    b = map(1:n_dims(T)) do i 
+        abs(d[i]) > 1e-3 ? solution[1+i] / (-2d[i]) :  # Having a threshold is ugly, but I'm out of ideas.
+                           cartesian(fitting_center)[i]
+    end
     # b = ((i) -> solution[1+i] / (-2d[i])).(1:n_dims(T))
     # b = solution[2:(n_dims(T) + 1)] ./ (-2d)
     # c = solution[1] - sum(i -> abs(d[i]) > 1e-3 ? abs2(b[i]) * d[i] : o[fitting_center], 1:n_dims(T))
