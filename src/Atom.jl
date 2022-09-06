@@ -1,4 +1,4 @@
-export Element, periodic_table, AbstractAtom, AtomInstance, make_atom, atomic_number, element_type, atomic_symbol, name
+export Element, periodic_table, AbstractAtom, AtomInstance, make_atom, atomic_number, element_type, atomic_symbol, name, position
 
 
 struct Element
@@ -147,6 +147,7 @@ abstract type AbstractAtom end
 
 grid(a::AbstractAtom) = a.grid
 position(a::AbstractAtom) = a.position
+cartesian(a::AbstractAtom) = basis_matrix(grid(a)) * position(a)
 
 atomic_number(a::AbstractAtom) = a.atomic_number
 element_type(a::AbstractAtom) = periodic_table[atomic_number(a)]
@@ -164,4 +165,8 @@ end
     
 function make_atom(::Type{AtomInstance}, atomic_number::Int, grid::Grid, position::AbstractVector)
     return AtomInstance(grid, position, atomic_number, Dict())
+end
+
+function Base.show(io::IO, a::AtomInstance)
+    print(io, "$(atomic_symbol(a)) @ $(position(a))")
 end

@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<!-- 2022-08-31 Wed 16:51 -->
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Design of WTP</title>
+<meta name="author" content="LI KANGBO" />
+<meta name="generator" content="Org Mode" />
+<style>
+  #content { max-width: 60em; margin: auto; }
+  .title  { text-align: center;
+             margin-bottom: .2em; }
+  .subtitle { text-align: center;
+              font-size: medium;
+              font-weight: bold;
+              margin-top:0; }
+  .todo   { font-family: monospace; color: red; }
+  .done   { font-family: monospace; color: green; }
+  .priority { font-family: monospace; color: orange; }
+  .tag    { background-color: #eee; font-family: monospace;
+            padding: 2px; font-size: 80%; font-weight: normal; }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .org-right  { margin-left: auto; margin-right: 0px;  text-align: right; }
+  .org-left   { margin-left: 0px;  margin-right: auto; text-align: left; }
+  .org-center { margin-left: auto; margin-right: auto; text-align: center; }
+  .underline { text-decoration: underline; }
+  #postamble p, #preamble p { font-size: 90%; margin: .2em; }
+  p.verse { margin-left: 3%; }
+  pre {
+    border: 1px solid #e6e6e6;
+    border-radius: 3px;
+    background-color: #f2f2f2;
+    padding: 8pt;
+    font-family: monospace;
+    overflow: auto;
+    margin: 1.2em;
+  }
+  pre.src {
+    position: relative;
+    overflow: auto;
+  }
+  pre.src:before {
+    display: none;
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    padding: 3px;
+    color: #555;
+    background-color: #f2f2f299;
+  }
+  pre.src:hover:before { display: inline; margin-top: 14px;}
+  /* Languages per Org manual */
+  pre.src-asymptote:before { content: 'Asymptote'; }
+  pre.src-awk:before { content: 'Awk'; }
+  pre.src-authinfo::before { content: 'Authinfo'; }
+  pre.src-C:before { content: 'C'; }
+  /* pre.src-C++ doesn't work in CSS */
+  pre.src-clojure:before { content: 'Clojure'; }
+  pre.src-css:before { content: 'CSS'; }
+  pre.src-D:before { content: 'D'; }
+  pre.src-ditaa:before { content: 'ditaa'; }
+  pre.src-dot:before { content: 'Graphviz'; }
+  pre.src-calc:before { content: 'Emacs Calc'; }
+  pre.src-emacs-lisp:before { content: 'Emacs Lisp'; }
+  pre.src-fortran:before { content: 'Fortran'; }
+  pre.src-gnuplot:before { content: 'gnuplot'; }
+  pre.src-haskell:before { content: 'Haskell'; }
+  pre.src-hledger:before { content: 'hledger'; }
+  pre.src-java:before { content: 'Java'; }
+  pre.src-js:before { content: 'Javascript'; }
+  pre.src-latex:before { content: 'LaTeX'; }
+  pre.src-ledger:before { content: 'Ledger'; }
+  pre.src-lisp:before { content: 'Lisp'; }
+  pre.src-lilypond:before { content: 'Lilypond'; }
+  pre.src-lua:before { content: 'Lua'; }
+  pre.src-matlab:before { content: 'MATLAB'; }
+  pre.src-mscgen:before { content: 'Mscgen'; }
+  pre.src-ocaml:before { content: 'Objective Caml'; }
+  pre.src-octave:before { content: 'Octave'; }
+  pre.src-org:before { content: 'Org mode'; }
+  pre.src-oz:before { content: 'OZ'; }
+  pre.src-plantuml:before { content: 'Plantuml'; }
+  pre.src-processing:before { content: 'Processing.js'; }
+  pre.src-python:before { content: 'Python'; }
+  pre.src-R:before { content: 'R'; }
+  pre.src-ruby:before { content: 'Ruby'; }
+  pre.src-sass:before { content: 'Sass'; }
+  pre.src-scheme:before { content: 'Scheme'; }
+  pre.src-screen:before { content: 'Gnu Screen'; }
+  pre.src-sed:before { content: 'Sed'; }
+  pre.src-sh:before { content: 'shell'; }
+  pre.src-sql:before { content: 'SQL'; }
+  pre.src-sqlite:before { content: 'SQLite'; }
+  /* additional languages in org.el's org-babel-load-languages alist */
+  pre.src-forth:before { content: 'Forth'; }
+  pre.src-io:before { content: 'IO'; }
+  pre.src-J:before { content: 'J'; }
+  pre.src-makefile:before { content: 'Makefile'; }
+  pre.src-maxima:before { content: 'Maxima'; }
+  pre.src-perl:before { content: 'Perl'; }
+  pre.src-picolisp:before { content: 'Pico Lisp'; }
+  pre.src-scala:before { content: 'Scala'; }
+  pre.src-shell:before { content: 'Shell Script'; }
+  pre.src-ebnf2ps:before { content: 'ebfn2ps'; }
+  /* additional language identifiers per "defun org-babel-execute"
+       in ob-*.el */
+  pre.src-cpp:before  { content: 'C++'; }
+  pre.src-abc:before  { content: 'ABC'; }
+  pre.src-coq:before  { content: 'Coq'; }
+  pre.src-groovy:before  { content: 'Groovy'; }
+  /* additional language identifiers from org-babel-shell-names in
+     ob-shell.el: ob-shell is the only babel language using a lambda to put
+     the execution function name together. */
+  pre.src-bash:before  { content: 'bash'; }
+  pre.src-csh:before  { content: 'csh'; }
+  pre.src-ash:before  { content: 'ash'; }
+  pre.src-dash:before  { content: 'dash'; }
+  pre.src-ksh:before  { content: 'ksh'; }
+  pre.src-mksh:before  { content: 'mksh'; }
+  pre.src-posh:before  { content: 'posh'; }
+  /* Additional Emacs modes also supported by the LaTeX listings package */
+  pre.src-ada:before { content: 'Ada'; }
+  pre.src-asm:before { content: 'Assembler'; }
+  pre.src-caml:before { content: 'Caml'; }
+  pre.src-delphi:before { content: 'Delphi'; }
+  pre.src-html:before { content: 'HTML'; }
+  pre.src-idl:before { content: 'IDL'; }
+  pre.src-mercury:before { content: 'Mercury'; }
+  pre.src-metapost:before { content: 'MetaPost'; }
+  pre.src-modula-2:before { content: 'Modula-2'; }
+  pre.src-pascal:before { content: 'Pascal'; }
+  pre.src-ps:before { content: 'PostScript'; }
+  pre.src-prolog:before { content: 'Prolog'; }
+  pre.src-simula:before { content: 'Simula'; }
+  pre.src-tcl:before { content: 'tcl'; }
+  pre.src-tex:before { content: 'TeX'; }
+  pre.src-plain-tex:before { content: 'Plain TeX'; }
+  pre.src-verilog:before { content: 'Verilog'; }
+  pre.src-vhdl:before { content: 'VHDL'; }
+  pre.src-xml:before { content: 'XML'; }
+  pre.src-nxml:before { content: 'XML'; }
+  /* add a generic configuration mode; LaTeX export needs an additional
+     (add-to-list 'org-latex-listings-langs '(conf " ")) in .emacs */
+  pre.src-conf:before { content: 'Configuration File'; }
+
+  table { border-collapse:collapse; }
+  caption.t-above { caption-side: top; }
+  caption.t-bottom { caption-side: bottom; }
+  td, th { vertical-align:top;  }
+  th.org-right  { text-align: center;  }
+  th.org-left   { text-align: center;   }
+  th.org-center { text-align: center; }
+  td.org-right  { text-align: right;  }
+  td.org-left   { text-align: left;   }
+  td.org-center { text-align: center; }
+  dt { font-weight: bold; }
+  .footpara { display: inline; }
+  .footdef  { margin-bottom: 1em; }
+  .figure { padding: 1em; }
+  .figure p { text-align: center; }
+  .equation-container {
+    display: table;
+    text-align: center;
+    width: 100%;
+  }
+  .equation {
+    vertical-align: middle;
+  }
+  .equation-label {
+    display: table-cell;
+    text-align: right;
+    vertical-align: middle;
+  }
+  .inlinetask {
+    padding: 10px;
+    border: 2px solid gray;
+    margin: 10px;
+    background: #ffffcc;
+  }
+  #org-div-home-and-up
+   { text-align: right; font-size: 70%; white-space: nowrap; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size: smaller }
+  .code-highlighted { background-color: #ffff00; }
+  .org-info-js_info-navigation { border-style: none; }
+  #org-info-js_console-label
+    { font-size: 10px; font-weight: bold; white-space: nowrap; }
+  .org-info-js_search-highlight
+    { background-color: #ffff00; color: #000000; font-weight: bold; }
+  .org-svg { width: 90%; }
+</style>
+</head>
+<body>
+<div id="content" class="content">
+<h1 class="title">The Design of WTP</h1>
+
+<div id="outline-container-orgd6bef67" class="outline-2">
+<h2 id="orgd6bef67"><span class="section-number-2">1.</span> Goals and Non-Goals</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The goal is to provide a <i>basic layer of reliable abstractions</i> for manipulating periodic
+lattices and electron orbitals.  It is not the goal of <code>WTP</code> to be a quantum
+chemistry/electronic structure <code>code</code>.
+</p>
+
+<p>
+<code>WTP</code> tries to get a few basic yet tricky things right, and it refuses to do
+anything beyond that such as energy calculation. The target audience of <code>WTP</code> is
+method developers, who may want to have the difficult but unpublishable details
+dealt with but nothing more. A more traditional <code>code</code> may very well have some
+of the functionalities of <code>WTP</code> implemented in some shape or form, but to use
+them one has to write ones program as part of the <code>code</code> or distribution of
+<code>code</code>, the entirety of which becomes an implicit dependency. This is an awful
+idea as it leads to quadratic scaling in terms of developer time, compilation
+time, and perhaps people problem time. For example, if fifty developers like to
+use a function implemented in a <code>code</code>, each of them has to compile, if not
+debug, the code written by all their predecessors, whose work are mutually
+irrelevant. My speculation for why people stick with this way of building
+software infrastructure is because the citation counts is also quadratic
+scaling. If each of the fifty developer gets cited ten times for what they do,
+each of them end up with five hundred citations when they stick together.
+</p>
+
+
+<p>
+It is also the goal of <code>WTP</code> to reduce the friction from ideas to prototypes.  It
+is not the goal of <code>WTP</code> to be massively parallel or even just fast so long as
+the asymptotic speed looks right.
+</p>
+
+<p>
+<code>WTP</code> tries to be concise so that you can express each self-contained idea in a
+page. We like to be efficient in terms of screen space for the same reason
+programs should be efficient with ram. A program can always swap its memory to
+disk if the ram runs out, but the program will slow down dramatically (nowadays
+the OS just kills it).  Similarly, a developer can always span a idea across
+many pages, but ideas are harder to develop when partially visible.
+Furthermore, <code>WTP</code> tries to resemble Mathematical notations so as to reduce
+unnecessary mental translations. In particular, one should never have to do
+mental arithmetics such as converting negative k-points to non-negative indices
+that starts from 1; <code>WTP</code> is meant to take care of that. On the flip side, the
+cost of conciseness and expressiveness tends to be performance, but we will not
+compromise the API for speed so long as the asymptotic speed is correct and
+BLAS/fftw is leveraged under the hood when possible. This implies that MPI is
+off the table because once it's introduced, it's shoved in everyone's face.
+</p>
+</div>
+</div>
+
+
+<div id="outline-container-orgbe09cb3" class="outline-2">
+<h2 id="orgbe09cb3"><span class="section-number-2">2.</span> API design</h2>
+<div class="outline-text-2" id="text-2">
+</div>
+<div id="outline-container-org5cb3811" class="outline-3">
+<h3 id="org5cb3811"><span class="section-number-3">2.1.</span> Factories</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+Given a abstract type <code>Creature</code> and two different concrete subtypes <code>Bird</code>,
+<code>Cat</code> with a single field <code>age::Int</code>, if a function <code>f</code> contructs an array of
+<code>Creature</code> as part of its job, but it has the age information in the form of
+<code>String</code>, the generic code for that could be
+</p>
+<pre class="example">
+function f(::S, ages::Vector{String}) where S &lt;: Creature
+    return [S(i) for i in ages]
+end
+</pre>
+<p>
+To provide the constructor API that makes functions like <code>f</code> work, now <code>Bird</code>
+and <code>Cat</code> will have to suppy a constructor that takes a <code>String</code> as the input.
+</p>
+<pre class="example">
+Bird(a::String) = Bird(Int(a))
+Cat(a::String) = Cat(Int(a))
+</pre>
+<p>
+This is, of course, duplicated logic, which is generally problematic.
+To avoid this, we will make a factory function for <code>Creature</code>.
+</p>
+<pre class="example">
+make_creature(::Type{S &lt;: Creature}, age::String) = S(Int(age))
+</pre>
+<p>
+<code>f</code> can now be modified to work as
+</p>
+<pre class="example">
+function f(::S, ages::Vector{String}) where S &lt;: Creature
+    return [make_creature(S, i) for i in ages]
+end
+</pre>
+
+
+<p>
+The takeaway is that when there is an abstract type with a few subtypes or more,
+use factories instead of overloading the contructors of the concrete type.
+</p>
+</div>
+</div>
+
+
+
+
+<div id="outline-container-orge5a1a6a" class="outline-3">
+<h3 id="orge5a1a6a"><span class="section-number-3">2.2.</span> File IO</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+To interface with electronic structure/quantum chemistry files, one has to
+map the content of the file to some data structure within the package.  The
+obvious thing to do is to write a function that reads the file and create a data
+structure out of it. The problem with this approach is that the data structure
+of the package gets dictated by the files, which are ad-hoc hacks that get
+propagated through inconsiderate implementations. Letting these hacks pollute 
+a package will significantly undermine the coherence of the design.
+</p>
+
+<p>
+To avoid code pollution from such files, their impact must be strictly contained
+within a few functions and data structures that parse and store the files, and
+the rest of the package must be designed fully <b>oblivious</b> of the file
+formats. This is a strict rule.  Therefore, in <code>WTP</code>, a few functions and IO
+structures are dedicated to the parsing and storage of the files. These IO
+structures are then mapped to <code>WTP</code> normal data structures if possible, but the
+normal data structures will in no way accommodate what is in the files.
+</p>
+
+<p>
+As an outlook, the concept of file formats (first line is date, second line is
+atomic position, etc) is a bad idea conceived probably by some physicists, and
+this idea should be abandoned sooner rather than later before more hours are
+wasted into this farce. The filetype/suffix of a file are meant to denote
+languages instead of formats. The problem of using file formats instead of
+languages is that each format requires a dedicated parser, whereas a language
+such as <code>json</code> or <code>xml</code>, perhaps with some schema, can do much more than all the
+file formats combined, but you need only one parser, and someone else already
+implemented it. Besides, <code>json</code> has actual comments rather than treating the
+first two line as the comment, and one of them is the date.
+</p>
+</div>
+</div>
+</div>
+
+
+
+
+
+<div id="outline-container-orgb0de490" class="outline-2">
+<h2 id="orgb0de490"><span class="section-number-2">3.</span> Programming Style</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+The programming styles here have specific motivations, but some are somewhat
+opinionated, so take it with a grain of salt.
+</p>
+
+<p>
+Scientific code tend to be deeply nested for loops. This is a serious problem
+because each line of code within the nested loop cannot be understood by itself.
+One has to identify the loops that contain the line of code and interpret the
+code with a context. The problem is particularly bad when the loop has side
+effects, then different scopes can interact. To prevent such horror from
+transpiring, we prefer to not use for/while loops unless necessary. We will now 
+give specific alternatives for each use case.
+</p>
+
+<p>
+Use <code>map</code>, <code>foldl</code>, <code>reduce</code>, or other functional tools when
+applicable. Compared to a for loop, the obvious advantage is that these
+functions do not introduce a new scope/indentation. The less apparent advantage
+is that they are more specific and readable. For example, <code>map(iseven, [1,2,3])</code>
+is explicitly a map, whereas the for loop equivalence
+</p>
+<div class="org-src-container">
+<pre class="src src-julia">result = zeros(Bool, 3)
+for (i, j) in enumerate([1,2,3])
+    result[i] = iseven(j)
+end
+</pre>
+</div>
+<p>
+has to be interpreted, sometimes incorrectly, as a map.
+</p>
+
+<p>
+Recursion can be a good idea if each iteration depends on previous
+iterations. For such iterations, it is important to mark the dependancy
+explicit. Naive parallelizations of such iteration is the quickest route to
+concurrency hell.  A recursion prevents naive parallelizations while often time
+easier to read due to having a function name.
+</p>
+
+<p>
+If nested for loops are necessary, refactor the inner loop into a function, and
+keep the body of the loop to one line. This can always reduce the nesting to at
+most two when recursively applied, and making a function out of each loop makes
+it possible for us to think of a few simple functions instead of a deeply nested
+loop. 
+</p>
+</div>
+</div>
+</div>
+<div id="postamble" class="status">
+<p class="author">Author: LI KANGBO</p>
+<p class="date">Created: 2022-08-31 Wed 16:51</p>
+<p class="validation"><a href="https://validator.w3.org/check?uri=referer">Validate</a></p>
+</div>
+</body>
+</html>

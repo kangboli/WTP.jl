@@ -1,0 +1,30 @@
+#+title: The design of WTP
+#+latex_header: \usepackage[margin=0.8in]{geometry}
+#+latex_header: \usepackage{physics}
+#+latex_header: \usepackage{bookman}
+#+latex_header: \usepackage{hyperref}
+#+latex_header: \usepackage[style=numeric]{biblatex}
+#+latex_header: \addbibresource{~/kaer_morhen/papers/lib.bib}
+
+* Goals and Non-Goals
+
+The goal is to provide a /thin layer of abstractions/ for
+manipulating periodic lattices and electron orbitals.
+
+=WTP= is thin in that only tries to get a few basic yet tricky things right, and
+it refuses to do anything on top of that such as energy calculation. The target
+audience of =WTP= is method developers, who may want to have the difficult but
+unpublishable details dealt with but nothing more. A more traditional =code= may
+very well have some of the functionalities of =WTP= implemented in some shape or
+form, but to use them one has to write ones program as part of another =code= or
+distribution, the entirety of which becomes an implicit dependency. This is an
+awful idea as it leads to quadratic scaling in terms of developer time,
+compilation time, and perhaps community management.
+
+To reiterate, the goal is not to build a powerful electronic structure =code= of
+any sort.
+
+
+* API design
+
+* Programming Style

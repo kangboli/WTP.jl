@@ -1,0 +1,131 @@
+#+title: The Design of WTP
+#+options: toc:nil
+#+latex_header: \usepackage[margin=0.8in]{geometry}
+#+latex_header: \usepackage{physics}
+#+latex_header: \usepackage{bookman}
+#+latex_header: \usepackage{hyperref}
+#+latex_header: \usepackage[style=numeric]{biblatex}
+#+latex_header: \addbibresource{~/kaer_morhen/papers/lib.bib}
+
+* Goals and Non-Goals
+
+The goal is to provide a /basic layer of reliable abstractions/ for manipulating periodic
+lattices and electron orbitals.  It is not the goal of =WTP= to be a quantum
+chemistry/electronic structure =code=.
+
+=WTP= tries to get a few basic yet tricky things right, and it refuses to do
+anything beyond that such as energy calculation. The target audience of =WTP= is
+method developers, who may want to have the difficult but unpublishable details
+dealt with but nothing more. A more traditional =code= may very well have some
+of the functionalities of =WTP= implemented in some shape or form, but to use
+them one has to write ones program as part of the =code= or distribution of
+=code=, the entirety of which becomes an implicit dependency. This is an awful
+idea as it leads to quadratic scaling in terms of developer time, compilation
+time, and perhaps people problem time. For example, if fifty developers like to
+use a function implemented in a =code=, each of them has to compile, if not
+debug, the code written by all their predecessors, whose work are mutually
+irrelevant. My speculation for why people stick with this way of building
+software infrastructure is because the citation counts is also quadratic
+scaling. If each of the fifty developer gets cited ten times for what they do,
+each of them end up with five hundred citations when they stick together.
+
+
+It is also the goal of =WTP= to reduce the friction from ideas to prototypes.  It
+is not the goal of =WTP= to be massively parallel or even just fast so long as
+the asymptotic speed looks right.
+
+=WTP= tries to be concise so that you can express each self-contained idea in a
+page. We like to be efficient in terms of screen space for the same reason
+programs should be efficient with ram. A program can always swap its memory to
+disk if the ram runs out, but the program will slow down dramatically (nowadays
+the OS just kills it).  Similarly, a developer can always span a idea across
+many pages, but ideas are harder to develop when partially visible.
+Furthermore, =WTP= tries to resemble Mathematical notations so as to reduce
+unnecessary mental translations. In particular, one should never have to do
+mental arithmetics such as converting negative k-points to non-negative indices
+that starts from 1; =WTP= is meant to take care of that. On the flip side, the
+cost of conciseness and expressiveness tends to be performance, but we will not
+compromise the API for speed so long as the asymptotic speed is correct and
+BLAS/fftw is leveraged under the hood when possible. This implies that MPI is
+off the table because once it's introduced, it's shoved in everyone's face.
+
+
+* API design
+
+** File IO
+
+To interface with electronic structure/quantum chemistry files, one has to
+map the content of the file to some data structure within the package.  The
+obvious thing to do is to write a function that reads the file and create a data
+structure out of it. The problem with this approach is that the data structure
+of the package gets dictated by the files, which are ad-hoc hacks that get
+propagated through inconsiderate implementations. Letting these hacks pollute 
+a package will significantly undermine the coherence of the design.
+
+To avoid code pollution from such files, their impact must be strictly contained
+within a few functions and data structures that parse and store the files, and
+the rest of the package must be designed fully *oblivious* of the file
+formats. This is a strict rule.  Therefore, in =WTP=, a few functions and IO
+structures are dedicated to the parsing and storage of the files. These IO
+structures are then mapped to =WTP= normal data structures if possible, but the
+normal data structures will in no way accommodate what is in the files.
+
+As an outlook, the concept of file formats (first line is date, second line is
+atomic position, etc) is a bad idea conceived probably by some physicists, and
+this idea should be abandoned sooner rather than later before more hours are
+wasted into this farce. The filetype/suffix of a file are meant to denote
+languages instead of formats. The problem of using file formats instead of
+languages is that each format requires a dedicated parser, whereas a language
+such as =json= or =xml=, perhaps with some schema, can do much more than all the
+file formats combined, but you need only one parser, and someone else already
+implemented it. Besides, =json= has actual comments rather than treating the
+first two line as the comment, and one of them is the date.
+
+
+
+
+
+* Programming Style
+
+The programming styles here have specific motivations, but some are somewhat
+opinionated, so take it with a grain of salt.
+
+Scientific code tend to be deeply nested for loops. This is a serious problem
+because each line of code within the nested loop cannot be understood by itself.
+One has to identify the loops that contain the line of code and interpret the
+code with a context. The problem is particularly bad when the loop has side
+effects, then different scopes can interact. To prevent such horror from
+transpiring, we prefer to not use for/while loops unless necessary. We will now 
+give specific alternatives for each use case.
+
+Use =map=, =foldl=, =reduce=, or other functional tools when
+applicable. Compared to a for loop, the obvious advantage is that these
+functions do not introduce a new scope/indentation. The less apparent advantage
+is that they are more specific and readable. For example, =map(iseven, [1,2,3])=
+is explicitly a map, whereas the for loop equivalence
+#+begin_src julia
+result = zeros(Bool, 3)
+for (i, j) in enumerate([1,2,3])
+    result[i] = iseven(j)
+end
+#+end_src
+has to be interpreted, sometimes incorrectly, as a map.
+
+Recursion can be a good idea if each iteration depends on previous
+iterations. For such iterations, it is important to mark the dependancy
+explicit. Naive parallelizations of such iteration is the quickest route to
+concurrency hell.  A recursion prevents naive parallelizations while often time
+easier to read due to having a function name.
+
+If nested for loops are necessary, refactor the inner loop into a function, and
+keep the body of the loop to one line. This can always reduce the nesting to at
+most two when recursively applied, and making a function out of each loop makes
+it possible for us to think of a few simple functions instead of a deeply nested
+loop. 
+
+
+
+
+
+
+

@@ -27,5 +27,6 @@ include("Atom.jl")
 include("Cube.jl")
 include("Operator.jl")
 include("Snoop.jl")
+include("Lattice.jl")
 
 end
