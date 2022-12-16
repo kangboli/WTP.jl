@@ -8,7 +8,7 @@ export AbstractGridVector,
     has_overflow,
     make_grid_vector,
     add_overflow,
-    cartesian,
+    coordinates,
     linear_index,
     braket_
 
@@ -319,7 +319,7 @@ julia> cartesian(lattice[1, 0, 1])
  1.0
 ```
 """
-cartesian(grid_vector::AbstractGridVector)::Vector{Number} = let g = grid(grid_vector)
+coordinates(grid_vector::AbstractGridVector)::Vector{Number} = let g = grid(grid_vector)
     basis_matrix(g) * (coefficients(grid_vector) + SVector(center(g)))
 end
 # cartesian(grid_vec::AbstractGridVector)::Vector{Number} = basis_transform(
@@ -337,7 +337,7 @@ julia> norm(lattice[1, 1, 1])
 1.7320508075688772
 ```
 """
-LinearAlgebra.norm(grid_vector::AbstractGridVector) = norm(cartesian(grid_vector))
+LinearAlgebra.norm(grid_vector::AbstractGridVector) = norm(coordinates(grid_vector))
 
 """
     linear_index(grid_vector)

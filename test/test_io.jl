@@ -29,8 +29,8 @@ using LinearAlgebra
     wanniers = ũ(:)
     ρ = abs2(wanniers[1])
     c = to_cube(ρ)
-    a = make_atom(AtomInstance, 16, grid(ρ), [1/16, 1/16, 1/16])
-    b = make_atom(AtomInstance, 24, grid(ρ), [1/16, 3/16, 5/16])
+    a = make_atom(16, grid(ρ), [1/16, 1/16, 1/16])
+    b = make_atom(24, grid(ρ), [1/16, 3/16, 5/16])
     element_type(a)
     element_type(b)
 

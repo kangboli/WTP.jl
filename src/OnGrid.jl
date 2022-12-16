@@ -568,7 +568,7 @@ julia> r̃2[grid(r̃2)[0, 0, 0]]
 ```
 """
 function compute_r2(g::HomeCell)
-    r_coordinates = cartesian.(g(1:length(g)))
+    r_coordinates = coordinates.(g(1:length(g)))
     r2 = norm.(r_coordinates).^2
     r2 = SimpleFunctionOnGrid(g, reshape(r2, size(g)...), true)
     return r2, fft(r2, false)
@@ -598,7 +598,7 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     r_min = grid(convolved)(linear_index_min)
     # println("Convolved:", convolved[r_min])
     result =  quadratic_fit(convolved, r_min)
-    result === nothing && return cartesian(r_min), convolved[r_min]
+    result === nothing && return coordinates(r_min), convolved[r_min]
     return result
 end
 
@@ -648,7 +648,7 @@ function quadratic_interpolation(
     g = grid(o)
     fitting_points = (v -> fitting_center + v).(quadratic_fitting_neighbors(g))
 
-    A = vcat(map(r -> [1, cartesian(r)[1:n_dims(T)]..., (cartesian(r) .^ 2)[1:n_dims(T)]...]', fitting_points)...)
+    A = vcat(map(r -> [1, coordinates(r)[1:n_dims(T)]..., (coordinates(r) .^ 2)[1:n_dims(T)]...]', fitting_points)...)
     # A is a (degree 2) vandermonde matrix and cannot be singular.
     rhs = o[reset_overflow.(fitting_points)]
 
@@ -656,7 +656,7 @@ function quadratic_interpolation(
     d = solution[(n_dims(T) + 2):(2 * n_dims(T) + 1)]
     b = map(1:n_dims(T)) do i 
         abs(d[i]) > 1e-3 ? solution[1+i] / (-2d[i]) :  # Having a threshold is ugly, but I'm out of ideas.
-                           cartesian(fitting_center)[i]
+                           coordinates(fitting_center)[i]
     end
     # b = ((i) -> solution[1+i] / (-2d[i])).(1:n_dims(T))
     # b = solution[2:(n_dims(T) + 1)] ./ (-2d)

@@ -40,8 +40,8 @@ function enumerate_atoms(lattice::HCP, atomic_number::Int)
     origin_points = coefficients.(collect(grid(lattice)))
     
     function create_atom_pair(p)
-    a = make_atom(AtomInstance, atomic_number, grid(lattice), p) 
-    b = make_atom(AtomInstance, atomic_number, grid(lattice), [p[1]+1/3, p[2]+1/3,
+    a = make_atom(atomic_number, grid(lattice), p) 
+    b = make_atom(atomic_number, grid(lattice), [p[1]+1/3, p[2]+1/3,
                                                            p[3]+1/2])
         return [a, b]
     end
@@ -52,6 +52,6 @@ end
 
 function enumerate_atoms(lattice::Lattice, atomic_number::Int)
     origin_points = coefficients.(collect(grid(lattice)))
-    return [make_atom(AtomInstance, atomic_number, grid(lattice), p) for p in origin_points]
+    return [make_atom(atomic_number, grid(lattice), p) for p in origin_points]
 end
 

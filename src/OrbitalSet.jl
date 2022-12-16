@@ -351,8 +351,8 @@ function phase_factors(wannier::OrbitalSet)
     g = orbital_grid(wannier)
     homecell = isa(g, HomeCell) ? g : transform_grid(g)
     supercell = expand(homecell, factors)
-    k_coordinates = hcat(cartesian.(brillouin_zone(1:length(brillouin_zone)))...)
-    r_coordinates = hcat(cartesian.(supercell(1:length(supercell)))...)
+    k_coordinates = hcat(coordinates.(brillouin_zone(1:length(brillouin_zone)))...)
+    r_coordinates = hcat(coordinates.(supercell(1:length(supercell)))...)
     @time phase = exp.(r_coordinates' * (1im * k_coordinates))
     @time SimpleFunctionOnGrid(brillouin_zone, reshape((n ->
                 SimpleFunctionOnGrid(supercell, reshape(phase[:, n], size(supercell)),
@@ -509,7 +509,7 @@ function (ũ::OrbitalSet{UnkBasisOrbital{T}})(::Colon) where {T<:ReciprocalLatt
     # for k in collect(brillouin_zone)
         U = hcat(vectorize.(ũ[k])...)
         for g in collect(reciprocal_lattice)
-            grid_vector = reset_overflow(snap(reciprocal_supercell, cartesian(g) + cartesian(k)))
+            grid_vector = reset_overflow(snap(reciprocal_supercell, coordinates(g) + coordinates(k)))
             orbital_elements[linear_index(grid_vector), :] = U[linear_index(g), :]
         end
     end

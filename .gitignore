@@ -11,3 +11,5 @@ notebooks/*
 .archive/*
 docs/build
 coverage
+.DS_Store
+test/tmp.jl

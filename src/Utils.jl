@@ -164,7 +164,7 @@ three_to_one(x::Integer, y::Integer, z::Integer, sizes::NTuple{3, Int}) =
 
 Create a copy of `a` with its field `b` set to `c`. 
 
-This is a castrated version of `@set` from `Setfield`.
+This is a dumb version of `@set` from `Setfield`.
 """
 macro set(assignement)
     target = assignement.args[1]
