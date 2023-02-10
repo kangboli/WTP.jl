@@ -1,7 +1,4 @@
-![WTP LOGO]()
 <img src="https://github.com/kangboli/WTP.jl/blob/main/wtp_logo.svg?raw=true" width="200"/>
-
-# WTP
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://wtp.kangbo.dev)
 
@@ -10,8 +7,8 @@
 WTP.jl provides a **thin layer of abstractions** for processing condense-phase
 orbitals. The library aims primarily to save ourselves from the insufferable
 agony of indices gymnastics without immolating all the performance.  Our goal
-is to make condense-phase codes  more concise and comprehensible with a tolerable
-performance sacrifice.
+is to make condense-phase codes  more concise and comprehensible with a
+tolerable performance sacrifice.
 
 The software design of `WTP.jl` follows the way of a computer scientist (as
 opposed to that of a computational scientist). I'm approaching numerical
