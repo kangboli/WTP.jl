@@ -1,4 +1,4 @@
-![WTP LOGO](https://github.com/kangboli/WTP.jl/blob/main/wtp_log.svg?raw=true)
+![WTP LOGO](https://github.com/kangboli/WTP.jl/blob/main/wtp_logo.svg?raw=true)
 # WTP
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://wtp.kangbo.dev)
