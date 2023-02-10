@@ -1,4 +1,4 @@
-export Element, periodic_table, AbstractAtom, Atom, make_atom, atomic_number, element_type, atomic_symbol, name, position
+export Element, periodic_table, AbstractAtom, Atom, make_atom, atomic_number, element_type, atomic_symbol, name, position, coordinates
 
 
 struct Element
@@ -146,12 +146,42 @@ periodic_table = [
 abstract type AbstractAtom end
 
 grid(a::AbstractAtom) = a.grid
+
+"""
+    position(a)
+
+Get the position of an atom in the basis of the grid.
+"""
 position(a::AbstractAtom) = a.position
+
+"""
+    coordinates(a)
+
+The cartesian coordinates of the atom.
+"""
 coordinates(a::AbstractAtom) = basis_matrix(grid(a)) * position(a)
 
 cache_number(a::AbstractAtom) = a.cache_number
+
+"""
+    atomic_number(a)
+
+Get the atomic number of the atom.
+"""
 atomic_number(a::AbstractAtom) = a.atomic_number
+
+"""
+    element_type(a)
+
+Get the type of element of the atom.
+"""
 element_type(a::AbstractAtom) = periodic_table[atomic_number(a)]
+
+"""
+    atomic_symbol(a)
+
+Get the atomic symbol of the atom.
+"""
 atomic_symbol(a::AbstractAtom) = element_type(a).atomic_symbol
 name(a::AbstractAtom) = element_type(a).name
 
@@ -163,6 +193,16 @@ mutable struct Atom <: AbstractAtom
     cache_number::Int
     # Metadata for accomodating various problems.
     meta::Dict
+end
+
+"""
+    make_atom(atomic_symbol, coordinates)
+
+Create an atom of element `atomic_symbol` at `coordinates`.
+"""
+function make_atom(atomic_symbol::Symbol, coordinates::Vararg)
+    index_atom = findfirst(e->e.atomic_symbol==atomic_symbol, periodic_table)
+    return make_atom(periodic_table[index_atom].atomic_number, collect(coordinates))
 end
 
 function make_atom(atomic_number::Int, position::AbstractVector)
