@@ -66,11 +66,9 @@ all pairs of basis vectors.
 ⟨ψ|ϕ⟩ = ∑ᵢⱼ aᵢ†bⱼ ⟨αᵢ|βⱼ⟩
 """
 function braket(l_1::LinearCombination, l_2::LinearCombination)
-    result = 0
 
     b_12 = [braket(b_1, b_2) for b_1 in basis(l_1), b_2 in basis(l_2)]
     return transpose(coefficients(l_1)) * b_12 * coefficients(l_2)
-    return result
 end
 
 Base.:+(l_1::LinearCombination, l_2::LinearCombination) = add(l_1, l_2)

@@ -1,5 +1,6 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Gadfly = "c91e804a-d5a3-530f-b6f0-dfbca275c004"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 WTP = "7f2d596f-d764-40ee-883d-fa5ff5538bc6"

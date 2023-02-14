@@ -13,3 +13,6 @@ docs/build
 coverage
 .DS_Store
 test/tmp.jl
+archived
+*.html
+logo.afdesign

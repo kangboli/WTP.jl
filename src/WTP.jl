@@ -22,11 +22,7 @@ include("OnGrid.jl")
 include("Orbital.jl")
 include("OrbitalSet.jl")
 include("IOPW.jl")
-# include("FileExport.jl")
-include("Atom.jl")
 include("Cube.jl")
-include("Operator.jl")
 include("Snoop.jl")
-include("Lattice.jl")
 
 end
