@@ -86,6 +86,20 @@ circular shift would give a wrong result. Because of this, we have to zero-pad
 our orbitals in the reciprocal lattice and introduce another difference from
 QE.
 
+## Neighbor Integrals
+
+We keep track of the list of neighbors with a dictionary. So the integral is indexed 
+as `m[b][k, m, n]`, where `m[b]` is a dictionary lookup that returns a bundle, and the
+rest of the indices gets an element out of the bundle.
+
+The reasons for treating the neighbors as dictionary keys instead of indices are
+1. the list of neighbors is not always in the Brillouin zone. It can overflow
+   and it's not appropriate to reset the overflow because the periodic copies
+   are meaningfully different.
+2. one can in principle convolve the Brillouin zone with the reciprocal lattice
+   and that would be able to accommodate all the periodic copies. However, this
+   large grid is only sparsely occupied and one has to have high dimensional
+   sparse arrays, and the easiest way to do that is through dictionaries.
 
 ## FFT and Normalization
 
@@ -218,7 +232,7 @@ constants. If one wants to share a state, pass it as an argument.
 
 > More than two levels of indentation is considered excessive.
 
-Code becomes thoroughly incomprehensible when deeply nested. Indentations in
+Code becomes incomprehensible when deeply nested. Indentations in
 older electronic structure code can wrap around the monitor if you are in
 portrait mode. Theoretically, it is never necessary to indent more than 2 levels.
 To reduce the level of indentation, there is a handful of tricks:
@@ -234,7 +248,7 @@ To reduce the level of indentation, there is a handful of tricks:
 
 Avoid using comments in the source code for documentation purposes. If the code
 itself cannot be written in a comprehensible way, it cannot be explained in
-some figurative allegories that are to be interpreted. Comments also don't
+some figurative English that are to be interpreted. Comments also don't
 update themselves when you update the code, after which the comments become
 lies and go on to gaslight future developers.
 

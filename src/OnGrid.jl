@@ -302,7 +302,7 @@ julia> typeof(ψ)
 WTP.SimpleFunctionOnGrid{ReciprocalLattice3D}
 ```
 """
-function fft(on_grid::OnGrid{T}, normalize = true) where {T<:HomeCell}
+function fft(on_grid::OnGrid{T}, normalize = true) where {T<:Union{HomeCell, RealLattice}}
     new_elements = FFTW.fft(elements(on_grid))
     unnormalized = resemble(on_grid, dual_grid(T), new_elements)
     return normalize ? unnormalized |> square_normalize! : unnormalized
@@ -359,7 +359,7 @@ julia> typeof(ϕ)
 WTP.SimpleFunctionOnGrid{HomeCell3D}
 ```
 """
-function ifft(on_grid::OnGrid{T}, normalize = true) where {T<:ReciprocalLattice}
+function ifft(on_grid::OnGrid{T}, normalize = true) where {T<:Union{ReciprocalLattice, BrillouinZone}}
     new_elements = FFTW.ifft(elements(on_grid))
     unnormalized = resemble(on_grid, dual_grid(T), new_elements)
     return normalize ? unnormalized |> square_normalize! : unnormalized

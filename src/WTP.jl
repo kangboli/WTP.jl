@@ -24,6 +24,6 @@ include("OrbitalSet.jl")
 include("IOPW.jl")
 include("Atom.jl")
 include("Cube.jl")
-include("Snoop.jl")
+#= include("Snoop.jl") =#
 
 end
