@@ -75,5 +75,5 @@ using Profile
     # transform should still work.
     @test size(homecell_off_center) == size(transform_grid(homecell_off_center))
     # The cartesian coordinates are moved.
-    @test cartesian(homecell_off_center[0, 0, 0]) == cartesian(homecell_even[1, -1, 2]) 
+    @test coordinates(homecell_off_center[0, 0, 0]) == coordinates(homecell_even[1, -1, 2]) 
 end

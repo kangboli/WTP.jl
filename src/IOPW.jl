@@ -130,6 +130,10 @@ function WFC(wave_function_filename::String)
     data = FortranFile(wave_function_filename)
     i_kpoint, k_coordinates, i_spin, gamma_only, scale_factor =
         read(data, Int32, (Float64, 3), Int32, Int32, Float64)
+    if gamma_only == -1
+        @warn "gamma_only == -1 interpreted as true"
+        gamma_only = 1
+    end
     gamma_only = Bool(gamma_only)
     n_planewaves, max_n_planewaves, n_polerizations, n_band =
         read(data, Int32, Int32, Int32, Int32)

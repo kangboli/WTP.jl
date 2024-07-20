@@ -68,7 +68,7 @@ mul(::Int, ::AbstractGridVector)
 ```
 
 ```@docs
-cartesian(::AbstractGridVector)
+coordinates(::AbstractGridVector)
 ```
 
 ```@docs

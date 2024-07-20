@@ -17,8 +17,6 @@ export Grid,
     HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, 
     n_dims, 
     array, 
-    invert_grid, 
-    shrink, 
     linear_index
 
 """

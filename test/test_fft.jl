@@ -9,15 +9,15 @@ using LinearAlgebra
     gamma_point = grid(ũ)[0, 0, 0]
 
     # Load the real orbital from a unk file.
-    unk = UNK(joinpath(test_1_dir, "unk/UNK00001.1"))
+    unk = UNK(joinpath(test_1_dir, "output/pw2wan/unk/UNK00001.1"))
     real_orbital = single_orbital_from_unk(unk,
         make_grid(HomeCell3D, CARTESIAN_BASIS, size_to_domain((unk.nx, unk.ny, unk.nz))), gamma_point, 1)
 
     # Transform the real orbital to the reciprocal space and match 
     # with one read from the .save folder.
     real_transformed = fft(real_orbital)
-    @test norm(elements(real_orbital)) == 1
-    @test norm(elements(real_transformed)) == 1
+    @test isapprox(norm(elements(real_orbital)), 1, atol=1e-12)
+    @test isapprox(norm(elements(real_transformed)), 1, atol=1e-12)
     @test norm(elements(real_transformed) - elements(ũ[gamma_point][1]) ) < 1e-6
 
     # Transform it back and make sure that it matches the original.

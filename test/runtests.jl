@@ -1,11 +1,9 @@
-currrent_dir = pwd()
-test_dir = endswith(currrent_dir, "WTP") ? joinpath(currrent_dir, "test") : currrent_dir
-test_1_dir = "$(test_dir)/test_data/test_1"
-test_2_dir = "$(test_dir)/test_data/test_2"
-test_3_dir = "$(test_dir)/test_data/test_3"
-test_4_dir = "$(test_dir)/test_data/test_4"
-test_5_dir = "$(test_dir)/test_data/test_5"
-test_6_dir = "$(test_dir)/test_data/test_6"
+current_dir = pwd()
+test_dir = endswith(current_dir, "WTP.jl") ? joinpath(current_dir, "test") : current_dir
+test_1_dir = "$(test_dir)/scdm_dataset/test_1"
+test_2_dir = "$(test_dir)/scdm_dataset/test_2"
+test_3_dir = "$(test_dir)/scdm_dataset/Benzene"
+test_6_dir = "$(test_dir)/scdm_dataset/test_6"
 
 include("$(test_dir)/test_grid.jl")
 include("$(test_dir)/test_grid_vector.jl")

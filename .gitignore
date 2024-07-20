@@ -1,10 +1,4 @@
 Manifest.toml
-test/test_data/test_*/*
-test/test_data/_test_*/*
-!test/test_data/test_*/si.yaml
-!test/test_data/test_*/benzene.yaml
-!test/test_data/test_5/si.save.zip
-!test/test_data/test_5/output.zip
 .vscode/*
 *.cube
 notebooks/*

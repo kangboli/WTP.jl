@@ -197,6 +197,12 @@ function wrapped(grid_vector::AbstractGridVector)
 end
 wrapped_1d(c, l, r) = mod((c - l), r - l + 1) + l 
 
+function wrapped(grid::Grid, point)
+    snapped = snap(grid, point)
+    residual = point - coordinates(snapped)
+    return residual + coordinates(reset_overflow(snapped))
+end
+
 # An alternative implementation.
 # function wrapped(grid_vector::AbstractGridVector)
 #     c = coefficients(grid_vector)
@@ -305,14 +311,14 @@ Base.:(==)(grid_vector_1::T, grid_vector_2::T) where T <: AbstractGridVector =
 Base.hash(grid_vector::AbstractGridVector)::UInt = linear_index(grid_vector) |> abs
 
 """
-    cartesian(grid_vector)
+    coordinates(grid_vector)
 
 The Cartesian coordinates of a grid vector.
 
 Example:
 
 ```@jldoctest grid_vector
-julia> cartesian(lattice[1, 0, 1])
+julia> coordinates(lattice[1, 0, 1])
 3-element Vector{Number}:
  1.0
  0.0
