@@ -597,13 +597,14 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     linear_index_min = argmin(reshape(elements(convolved), length(grid(convolved))))
     r_min = grid(convolved)(linear_index_min)
     # println("Convolved:", convolved[r_min])
-    return coordinates(r_min), convolved[r_min]
-#    try
-#        result =  quadratic_fit(convolved, r_min)
-#        return result
-#    catch e
-#        return coordinates(r_min), convolved[r_min]
-#    end
+    #= return coordinates(r_min), convolved[r_min] =#
+    try
+        conv_center, conv_spread =  quadratic_fit(convolved, r_min)
+        return -conv_center, conv_spread
+    catch _
+        #= return coordinates(r_min), convolved[r_min] =#
+        error("quadratic fit failed")
+    end
 end
 
 struct QuadraticFunction
