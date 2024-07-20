@@ -795,7 +795,7 @@ julia> U[brillouin_zone[0, 0, 0]][:, :]
   0.0694477+0.124822im    0.516605+0.173543im    0.152318-0.411003im   -0.694672+0.0889086im
 ```
 """
-function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int,KPoint}, orthonormalization = true)
+function Gauge(grid::Grid, amn::AMN, k_map::Dict{Int,KPoint}, orthonormalization = false)
     gauge = Gauge(grid)
 
     orthonormalize(A::AbstractMatrix) =
@@ -822,7 +822,7 @@ function Gauge(grid::Grid, umat::UMAT)
     k_unit_fraction = abs.(hcat(keys(umat.u_matrices)...)) |> eachrow  .|> find_second_smallest
 
     for (k, u) in umat.u_matrices
-        gauge[grid[Int.(k ./ k_unit_fraction)...]] = u
+        gauge[grid[Int.(round.(k ./ k_unit_fraction))...]] = u
     end
     return gauge
 end
