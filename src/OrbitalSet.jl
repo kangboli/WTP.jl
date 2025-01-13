@@ -8,7 +8,6 @@ export OrbitalSet,
     commit_gauge,
     commit_gauge!,
     orbital_grid,
-    gauge_transform,
     phase_factors,
     n_band,
     wannier_orbitals,
@@ -368,7 +367,7 @@ end
 """
     getindex(u, k)
 
-Indexing a wannier object with a kpoint gives the set of basis orbitals at that
+Indexing a orbital set with a kpoint gives the set of basis orbitals at that
 kpoint. The gauge is irrelevant for this type of indexing. One can also write `u[k]`.
 
 Example: 
@@ -378,9 +377,11 @@ julia> typeof(ũ[brillouin_zone[0, 0, 0]])
 Vector{UnkBasisOrbital{ReciprocalLattice3D}} (alias for Array{UnkBasisOrbital{ReciprocalLattice3D}, 1})
 ```
 
-The kpoint can be out of the first Brillouin zone. In that case, the basis
-orbital corresponding to that kpoint will be computed by phase shifting its
-image in the first Brillouin zone.
+!!! note
+
+    *The kpoint can be out of the first Brillouin zone*. In that case, the basis
+    orbital corresponding to that kpoint will be computed by phase shifting its
+    image in the first Brillouin zone.
 
 ```jldoctest orbital_set
 julia> k_1, k_2 = brillouin_zone[-2, 0, 0], brillouin_zone[2, 0, 0];

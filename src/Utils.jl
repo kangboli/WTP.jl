@@ -1,7 +1,7 @@
 using Dates
 # using Coverage 
 
-export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set, process_coverage
+export indent, size_to_domain, miller_to_standard, standard_to_miller, three_to_one, one_to_three, @set
 
 """
     size_to_domain(sizes)

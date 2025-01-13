@@ -1,5 +1,6 @@
-export Element, periodic_table, AbstractAtom, Atom, make_atom, atomic_number, element_type, atomic_symbol, name, position, coordinates
+export Element, periodic_table, AbstractAtom, Atom, make_atom, atomic_number, element_type, atomic_symbol, name, position, coordinates, BOHR_TO_ANGSTROM, charge
 
+const BOHR_TO_ANGSTROM = 0.529177248994098
 
 struct Element
     atomic_number::Int
@@ -208,6 +209,18 @@ end
 function make_atom(atomic_number::Int, position::AbstractVector)
     return Atom(make_grid(HomeCell3D, CARTESIAN_BASIS, ((-1, 0), (-1, 0), (-1, 0))), position, atomic_number, -1, Dict())
 end
+
+"""
+    make_atom(atomic_symbol, grid, position)
+
+Create an atom of element `atomic_symbol` at `position`. The position is 
+a relative in the basis of the grid.
+"""
+function make_atom(atomic_symbol::Symbol, grid::Grid, coordinates::Vararg)
+    index_atom = findfirst(e->e.atomic_symbol==atomic_symbol, periodic_table)
+    return make_atom(periodic_table[index_atom].atomic_number, grid, collect(coordinates))
+end
+
 function make_atom(atomic_number::Int, grid::Grid, position::AbstractVector)
     return Atom(grid, position, atomic_number, -1, Dict())
 end
@@ -215,3 +228,5 @@ end
 function Base.show(io::IO, a::Atom)
     print(io, "$(atomic_symbol(a)) @ $(position(a))")
 end
+
+charge(a::AbstractAtom) = atomic_number(a)

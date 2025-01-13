@@ -325,7 +325,7 @@ julia> coordinates(lattice[1, 0, 1])
  1.0
 ```
 """
-coordinates(grid_vector::AbstractGridVector)::Vector{Number} = let g = grid(grid_vector)
+coordinates(grid_vector::AbstractGridVector) = let g = grid(grid_vector)
     basis_matrix(g) * (coefficients(grid_vector) + SVector(center(g)))
 end
 # cartesian(grid_vec::AbstractGridVector)::Vector{Number} = basis_transform(

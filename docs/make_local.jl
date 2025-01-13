@@ -1,11 +1,16 @@
 using Documenter, WTP, LinearAlgebra
 
 push!(LOAD_PATH,"../src/")
-DocMeta.setdocmeta!(WTP, :DocTestSetup, :(using WTP; using LinearAlgebra; using UnicodePlots); recursive=true)
+#= DocMeta.setdocmeta!(WTP, :DocTestSetup, :(using WTP; using LinearAlgebra; using UnicodePlots); recursive=true) =#
+#
 makedocs(sitename="𝑾𝑻𝑷.jl",
 modules=[WTP],
 checkdocs=:none,
+doctest=false,
 # strict=true,
+#= format=Documenter.HTML(
+    assets=["assets/custom.css"],
+), =#
 pages = [
     "Home" => "index.md",
     "Grid" => "grid.md",
