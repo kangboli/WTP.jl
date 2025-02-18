@@ -1,22 +1,22 @@
-export Grid, 
-    make_grid, 
+export Grid,
+    make_grid,
     basis,
     basis_matrix,
     domain,
     domain_matrix,
     set_domain,
-    center, 
-    HomeCell, 
-    ReciprocalLattice, 
-    BrillouinZone, 
-    RealLattice, 
+    center,
+    HomeCell,
+    ReciprocalLattice,
+    BrillouinZone,
+    RealLattice,
     dual_grid,
-    transform_grid, 
+    transform_grid,
     snap,
-    x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes, 
-    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D, 
-    n_dims, 
-    array, 
+    x_min, x_max, y_min, y_max, z_min, z_max, mins, maxes,
+    HomeCell3D, ReciprocalLattice3D, BrillouinZone3D, RealLattice3D,
+    n_dims,
+    array,
     linear_index
 
 """
@@ -153,7 +153,7 @@ julia> domain(homecell)
 """
 domain(grid::Grid) = grid.domain
 
-_convert_domain_to_matrix(::Type{T}, domain) where T <: Grid = SMatrix{n_dims(T),2,Int}(vcat([[d[1] d[2]] for d in domain]...))
+_convert_domain_to_matrix(::Type{T}, domain) where {T<:Grid} = SMatrix{n_dims(T),2,Int}(vcat([[d[1] d[2]] for d in domain]...))
 
 """
     domain_matrix(grid)
@@ -190,7 +190,7 @@ basis:
     ket: 0.000, 0.000, 0.500
 ```
 """
-function set_domain(grid::T, new_domain::Tuple) where T <: Grid
+function set_domain(grid::T, new_domain::Tuple) where {T<:Grid}
     grid = @set grid.domain = new_domain
     size = _compute_size(new_domain)
     domain_matrix = _convert_domain_to_matrix(T, new_domain)
@@ -378,6 +378,9 @@ Base.getindex(g::Grid, I::Range, J::Range, K::Range) = [g[i, j, k] for i in I, j
 
 Base.getindex(g::Grid, i::Integer, J::Range, K::Range) = [g[i, j, k] for j in J, k in K]
 
+#= basis_vectors(g::Grid) = [g[1, 0, 0], g[0, 1, 0], g[0, 0, 1]]
+cell_vectors(g::Grid) = map((s, v) -> s * v, size(g), basis_vectors(g)) =#
+
 """
     g[x_1:x_2, y, z_1:z_2]
 
@@ -450,7 +453,7 @@ julia> linear_index(homecell(4))
 """
 linear_index(g::Grid, i::Integer) = g(i)
 (g::Grid)(i::Integer) = make_grid_vector(g,
-    SVector(standard_to_miller(size(g), one_to_three(i, size(g)), (0, 0, 0))))
+    SVector(standard_to_miller(size(g), one_to_three(i, size(g)), .-center(g))))
 
 """
 Indexing a grid with a list of linear indices gives a list of grid vector.
@@ -621,7 +624,7 @@ julia> basis_matrix(reciprocal_lattice)' * basis_matrix(homecell) * diagm([size(
 """
 transform_grid(grid::T) where {T<:Grid} =
     let A = basis_matrix(grid) * diagm([size(grid)...]), B = 2 * pi * inv(A)'
-        make_grid(dual_grid(T), matrix_to_vector3(B), size_to_domain(size(grid)))
+        make_grid(dual_grid(T), matrix_to_vector3(B), domain(grid))
     end
 
 
@@ -669,7 +672,7 @@ mutable struct GridCache
     _maxes::NTuple{3,Integer}
 end
 
-make_grid_cache(::Type{T}, _basis_matrix, _domain_matrix, _size, _center, _mins, _maxes) where T <: Grid =
+make_grid_cache(::Type{T}, _basis_matrix, _domain_matrix, _size, _center, _mins, _maxes) where {T<:Grid} =
     GridCache(_basis_matrix, _domain_matrix, _size, _center, _mins, _maxes)
 
 """

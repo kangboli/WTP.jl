@@ -73,7 +73,7 @@ This syntax is very simple and expressive, but keep in mind that this involves
 compiling an anonymous function for each map, which costs as much as the mapping
 it self. 
 """
-function Base.map(f::Function, grid::T, threading=true) where T<:Grid
+function Base.map(f::Function, grid::T, threading=true) where {T<:Grid}
     grid_vectors = array(grid)
     raw_elements = threading ? Folds.map(f, grid_vectors, ThreadedEx()) : map(f, grid_vectors)
     shifted_elements = circshift(raw_elements, mins(grid))
@@ -123,7 +123,7 @@ julia> ϕ[homecell[0, 0, 0]]
 function Base.getindex(on_grid::OnGrid, grid_vector::AbstractGridVector)
     overflow_detection && has_overflow(grid_vector) && error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
-    indices = miller_to_standard(grid_vector, center(grid(on_grid)))
+    indices = miller_to_standard(grid_vector, map(i -> -i, center(grid(on_grid))))
     return element(on_grid, indices...)
 end
 
@@ -147,7 +147,7 @@ julia> ϕ[homecell[:, 0, -1:1]]
 """
 function Base.getindex(on_grid::OnGrid, grid_vector_array::AbstractArray{<:AbstractGridVector})
     # TODO: Implement error checking.
-    index_array = (v -> miller_to_standard(v, center(grid(on_grid)))).(grid_vector_array)
+    index_array = (v -> miller_to_standard(v, map(i -> -i, center(grid(on_grid))))).(grid_vector_array)
     return (I -> element(on_grid, I...)).(index_array)
 end
 
@@ -169,7 +169,7 @@ julia> ϕ[homecell[0, 0, 0]] = 0; # remember to set it back for later examples.
 function Base.setindex!(on_grid::OnGrid, value, grid_vector::AbstractGridVector)
     overflow_detection && has_overflow(grid_vector) && error("overflow: $(grid_vector)\n on \n$(grid(on_grid))")
     grid(grid_vector) == grid(on_grid) || error("mismatching grid")
-    indices = miller_to_standard(grid_vector, center(grid(on_grid)))
+    indices = miller_to_standard(grid_vector, map(i -> -i, center(grid(on_grid))))
     element!(on_grid, value, indices...)
 end
 
@@ -302,7 +302,7 @@ julia> typeof(ψ)
 WTP.SimpleFunctionOnGrid{ReciprocalLattice3D}
 ```
 """
-function fft(on_grid::OnGrid{T}, normalize = true) where {T<:Union{HomeCell, RealLattice}}
+function fft(on_grid::OnGrid{T}, normalize=true) where {T<:Union{HomeCell,RealLattice}}
     new_elements = FFTW.fft(elements(on_grid))
     unnormalized = resemble(on_grid, dual_grid(T), new_elements)
     return normalize ? unnormalized |> square_normalize! : unnormalized
@@ -317,7 +317,7 @@ in an invalid state. Use `@fft!` instead to set `on_grid` to `nothing`.
 In place Fast Fourier Transform (FFT) of an `OnGrid` object.
 The memory of the argument will be repurposed for its FFT.
 """
-function _fft!(on_grid::OnGrid{T}, normalize = true) where {T<:HomeCell}
+function _fft!(on_grid::OnGrid{T}, normalize=true) where {T<:HomeCell}
     FFTW.fft!(elements(on_grid))
     unnormalized = resemble(on_grid, dual_grid(T), elements(on_grid))
     return normalize ? unnormalized |> square_normalize! : unnormalized
@@ -359,7 +359,7 @@ julia> typeof(ϕ)
 WTP.SimpleFunctionOnGrid{HomeCell3D}
 ```
 """
-function ifft(on_grid::OnGrid{T}, normalize = true) where {T<:Union{ReciprocalLattice, BrillouinZone}}
+function ifft(on_grid::OnGrid{T}, normalize=true) where {T<:Union{ReciprocalLattice,BrillouinZone}}
     new_elements = FFTW.ifft(elements(on_grid))
     unnormalized = resemble(on_grid, dual_grid(T), new_elements)
     return normalize ? unnormalized |> square_normalize! : unnormalized
@@ -373,7 +373,7 @@ in an invalid state. Use `@ifft!` instead to set `on_grid` to `nothing`.
 
 In place Inverse Fast Fourier Transform of an `OnGrid` object.
 """
-function _ifft!(on_grid::OnGrid{T}, normalize = true) where {T<:ReciprocalLattice}
+function _ifft!(on_grid::OnGrid{T}, normalize=true) where {T<:ReciprocalLattice}
     FFTW.ifft!(elements(on_grid))
     unnormalized = resemble(on_grid, dual_grid(T), elements(on_grid))
     return normalize ? unnormalized |> square_normalize! : unnormalized
@@ -419,7 +419,7 @@ function Base.:(>>)(on_grid::OnGrid, translation::AbstractVector{<:Number})
     standardize(translate(on_grid, translation))
 end
 
-function resemble(on_grid::SimpleFunctionOnGrid{S}, ::Type{T}, new_elements = nothing) where {S<:Grid,T<:Grid}
+function resemble(on_grid::SimpleFunctionOnGrid{S}, ::Type{T}, new_elements=nothing) where {S<:Grid,T<:Grid}
     g = grid(on_grid)
     S == dual_grid(T) && (g = transform_grid(g))
     if new_elements === nothing
@@ -459,7 +459,7 @@ end
 
 Can also write `o_1 - o_2`.
 """
-function minus(o_1::OnGrid{T}, o_2::OnGrid{T}) where T <: Grid
+function minus(o_1::OnGrid{T}, o_2::OnGrid{T}) where {T<:Grid}
     add(o_1, negate(o_2))
 end
 
@@ -569,7 +569,7 @@ julia> r̃2[grid(r̃2)[0, 0, 0]]
 """
 function compute_r2(g::HomeCell)
     r_coordinates = coordinates.(g(1:length(g)))
-    r2 = norm.(r_coordinates).^2
+    r2 = norm.(r_coordinates) .^ 2
     r2 = SimpleFunctionOnGrid(g, reshape(r2, size(g)...), true)
     return r2, fft(r2, false)
 end
@@ -599,7 +599,7 @@ function center_spread(õ::OnGrid{T}, r̃2::OnGrid{T}) where {T<:ReciprocalLatt
     # println("Convolved:", convolved[r_min])
     #= return coordinates(r_min), convolved[r_min] =#
     try
-        conv_center, conv_spread =  quadratic_fit(convolved, r_min)
+        conv_center, conv_spread = quadratic_fit(convolved, r_min)
         return -conv_center, conv_spread
     catch _
         #= return coordinates(r_min), convolved[r_min] =#
@@ -615,9 +615,10 @@ end
 
 coefficients(q::QuadraticFunction) = q.b, q.c, q.d
 
-(q::QuadraticFunction)(p::AbstractVector) = let (b, c, d) = coefficients(q)
-    (p - b)' * diagm(d) * (p - b) + c
-end
+(q::QuadraticFunction)(p::AbstractVector) =
+    let (b, c, d) = coefficients(q)
+        (p - b)' * diagm(d) * (p - b) + c
+    end
 
 
 """
@@ -657,21 +658,21 @@ function quadratic_interpolation(
     # A is a (degree 2) vandermonde matrix and cannot be singular.
     rhs = o[reset_overflow.(fitting_points)]
 
-    solution = A \ rhs 
-    d = solution[(n_dims(T) + 2):(2 * n_dims(T) + 1)]
-    b = map(1:n_dims(T)) do i 
+    solution = A \ rhs
+    d = solution[(n_dims(T)+2):(2*n_dims(T)+1)]
+    b = map(1:n_dims(T)) do i
         abs(d[i]) > 1e-3 ? solution[1+i] / (-2d[i]) :  # Having a threshold is ugly, but I'm out of ideas.
-                           coordinates(fitting_center)[i]
+        coordinates(fitting_center)[i]
     end
     # b = ((i) -> solution[1+i] / (-2d[i])).(1:n_dims(T))
     # b = solution[2:(n_dims(T) + 1)] ./ (-2d)
     # c = solution[1] - sum(i -> abs(d[i]) > 1e-3 ? abs2(b[i]) * d[i] : o[fitting_center], 1:n_dims(T))
     c = [1, b..., (b .^ 2)...]' * solution
-    return QuadraticFunction(b,c,d)
+    return QuadraticFunction(b, c, d)
 end
 
-function quadratic_fitting_neighbors(g::T) where T <: Grid
-        return [g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
+function quadratic_fitting_neighbors(g::T) where {T<:Grid}
+    return [g[1, 0, 0], g[-1, 0, 0], g[0, 1, 0],
         g[0, -1, 0], g[0, 0, 1], g[0, 0, -1], g[0, 0, 0]]
 end
 
@@ -683,7 +684,7 @@ Find the value of the orbital at an arbitrary Cartesian point `p` by quadratical
 interpolating at the nearest grid point to `p` 
 
 """
-function cartesian_interpolate(o::OnGrid{S}, p::AbstractVector) where S <: Grid
+function cartesian_interpolate(o::OnGrid{S}, p::AbstractVector) where {S<:Grid}
     origin = snap(grid(o), p)
     # has_overflow(origin) && return 0im
     quadratic_interpolation(o, origin)(p)
@@ -727,7 +728,7 @@ basis:
     ket: 0.000, 0.000, 1.571
 ```
 """
-function expand(on_grid::OnGrid, factors = [2, 2, 2])
+function expand(on_grid::OnGrid, factors=[2, 2, 2])
     new_elements = repeat(elements(on_grid), factors...)
     g = grid(on_grid)
     # shift_amount = map((f, s)->isodd(f) ? 0 : -(s÷2), factors, size(g))
@@ -763,7 +764,7 @@ julia> vectorize(ϕ̃_2)
 """
 function sparsify(on_grid::OnGrid; threshold=1e-16)
     # none_zero_indices = findall(!iszero, vectorize(on_grid))
-    rounded = (n->abs(n) < threshold ? 0 : n).(vectorize(on_grid))
+    rounded = (n -> abs(n) < threshold ? 0 : n).(vectorize(on_grid))
     sparse_vector = sparse(rounded)
     @set on_grid.elements = reshape(sparse_vector, size(elements(on_grid))...)
 end
