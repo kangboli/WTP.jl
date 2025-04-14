@@ -74,15 +74,6 @@ MMN
 MMN(::String)
 ```
 
-<!-- 
-```@docs
-NeighborIntegral(::MMN, ::Dict{Int64, KPoint})
-``` -->
-
-!!! note 
-
-    For Γ-point calculations, the neighbor integrals are between Γ-point of the first Brillouin zone and that of other (most likely adjacent) Brillouin zones.
-
 ## `.amn` Files
 
 ```@docs

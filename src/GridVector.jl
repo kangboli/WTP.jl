@@ -271,7 +271,8 @@ GridVector{ReciprocalLattice3D}:
 function add(grid_vector_1::T, grid_vector_2::T) where {T<:AbstractGridVector}
     # ket(grid_vector_1) == ket(grid_vector_2) || error("Adding a bra to a ket.")
     grid(grid_vector_1) == grid(grid_vector_2) || error("Grid vectors defined on different grid.")
-    new_coefficients = coefficients(grid_vector_1) + coefficients(grid_vector_2)
+    grid_center = [center(grid(grid_vector_1))...]
+    new_coefficients = (coefficients(grid_vector_1) - grid_center) + (coefficients(grid_vector_2) - grid_center) + grid_center
     return T(grid(grid_vector_1), new_coefficients, ket(grid_vector_1))
 end
 
@@ -288,15 +289,20 @@ GridVector{ReciprocalLattice3D}:
     coefficients: [0, 0, -1]
 ```
 """
-negate(grid_vector_1::T) where {T<:AbstractGridVector} =
-    T(grid(grid_vector_1), -coefficients(grid_vector_1), ket(grid_vector_1))
+function negate(grid_vector_1::T) where {T<:AbstractGridVector}
+    grid_center = [center(grid(grid_vector_1))...]
+    T(grid(grid_vector_1), -(coefficients(grid_vector_1) - grid_center) + grid_center, ket(grid_vector_1))
+end
 
 """
     mul(s, grid_vector)
 
 Scale a grid vector. Can also write `s * grid_vector` or `grid_vector * s`.
 """
-mul(s::Int, l1::T) where {T<:AbstractGridVector} = T(grid(l1), s * coefficients(l1), ket(l1))
+function mul(s::Int, l1::T) where {T<:AbstractGridVector}
+    grid_center = [center(grid(l1))...]
+    T(grid(l1), s * (coefficients(l1) - grid_center) + grid_center, ket(l1))
+end
 # minus(grid_vector_1::T, grid_vector_2::T) where T <: AbstractGridVector = add(grid_vector_1, negate(grid_vector_2))
 
 function Base.show(io::IO, grid_vector::AbstractGridVector)
@@ -327,8 +333,9 @@ julia> coordinates(lattice[1, 0, 1])
 """
 coordinates(grid_vector::AbstractGridVector) =
     let g = grid(grid_vector)
+        grid_center = [center(g)...]
         #= basis_matrix(g) * (coefficients(grid_vector) + SVector(center(g))) =#
-        basis_matrix(g) * coefficients(grid_vector)
+        basis_matrix(g) * (coefficients(grid_vector) - grid_center)
     end
 # cartesian(grid_vec::AbstractGridVector)::Vector{Number} = basis_transform(
 #     coefficients(grid_vec), basis(grid_vec), CARTESIAN_BASIS)
